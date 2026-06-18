@@ -1,4 +1,4 @@
-from django.test import TestCase
+from django.test import TestCase, Client
 from django.utils import timezone
 from datetime import datetime
 from todo.models import Task
@@ -37,3 +37,20 @@ class TaskModelTestCase(TestCase):
 
             self.assertFalse(task.is_overdue(currrent))
 
+class TodoViewTestCase(TestCase):
+    def test_index_get(self):
+        client = Client()
+        respose = Client.get('/')
+
+        self.assertEqual(respose.status_code, 200)
+        self.assertEqual(respose.templates[0].name, 'todo/index.html')
+        self.assertEqual(len(respose.context['tasks']), 0)
+        
+    def test_index_post(self):
+        client = Client()
+        data = {'title': 'Test Task', 'due_at': '2024-06-30 23:59:59'}
+        response = client.post('/', data)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.templates[0].name, 'todo/index.html')
+        self.assertEqual(len(response.context['tasks']), 1)
