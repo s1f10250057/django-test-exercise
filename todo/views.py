@@ -4,6 +4,8 @@ from django.utils.dateparse import parse_datetime
 from todo.models import Task
 
 # Create your views here.
+
+
 def index(request):
     if request.method == 'POST':
         task = Task(title=request.POST['title'],
