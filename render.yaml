@@ -6,7 +6,7 @@ databases:
 
 services:
   - type: web
-    name: (あなたのWebサービス名 ← ここは重複しないよう変更)
+    name: django-test-web-tkns
     env: python
     plan: free
     branch: main
