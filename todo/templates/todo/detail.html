@@ -22,6 +22,13 @@
       {% endif %}
     </ul>
 
+    {% if not task.completed %}
+    <form action="{% url 'complete' task.id %}" method="post">
+      {% csrf_token %}
+      <button type="submit">Complete</button>
+    </form>
+    {% endif %}
+
     <form action="{% url 'delete' task.id %}" method="post">
       {% csrf_token %}
       <button type="submit">Delete</button>
