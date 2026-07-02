@@ -24,6 +24,7 @@ def index(request):
     }
     return render(request, 'todo/index.html', context)
 
+
 def detail(request, task_id):
     try:
         task = Task.objects.get(pk=task_id)
@@ -44,4 +45,16 @@ def delete(request, task_id):
         raise Http404("Task does not exist")
 
     task.delete()
+    return redirect('index')
+
+
+@require_POST
+def complete(request, task_id):
+    try:
+        task = Task.objects.get(pk=task_id)
+    except Task.DoesNotExist:
+        raise Http404("Task does not exist")
+
+    task.completed = True
+    task.save()
     return redirect('index')
