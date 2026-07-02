@@ -46,6 +46,10 @@
         <li>Status: Not Completed</li>
         {% endif %}
       </ul>
+      <form action="{% url 'delete' task.id %}" method="post">
+        {% csrf_token %}
+        <button type="submit">Delete</button>
+      </form>
     </div>
     {% endfor %}
   </body>

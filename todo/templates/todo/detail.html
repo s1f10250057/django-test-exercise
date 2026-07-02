@@ -22,6 +22,11 @@
       {% endif %}
     </ul>
 
+    <form action="{% url 'delete' task.id %}" method="post">
+      {% csrf_token %}
+      <button type="submit">Delete</button>
+    </form>
+
     <div>
       <a href="{% url 'index' %}">Top</a>
     </div>
