@@ -1,0 +1,172 @@
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  color: #243042;
+  background: #f7f8fb;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+main {
+  width: 100%;
+  max-width: 680px;
+  margin: 0 auto;
+  padding: 32px 20px;
+}
+
+.page-header {
+  margin-bottom: 20px;
+}
+
+h1 {
+  margin: 0 0 8px;
+  color: #172033;
+  font-size: 28px;
+  line-height: 1.2;
+  letter-spacing: 0;
+}
+
+p {
+  margin: 0;
+  color: #5b6678;
+  font-size: 16px;
+}
+
+h2 {
+  margin: 0 0 8px;
+  font-size: 18px;
+}
+
+a {
+  color: #2458d3;
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
+}
+
+form {
+  margin: 0;
+}
+
+.task-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 220px auto;
+  gap: 12px;
+  align-items: end;
+  margin-bottom: 16px;
+  padding: 16px;
+  background: #ffffff;
+  border: 1px solid #e2e7f0;
+  border-radius: 8px;
+  box-shadow: 0 4px 14px rgb(34 48 74 / 6%);
+}
+
+label {
+  display: block;
+  margin-bottom: 5px;
+  color: #344052;
+  font-size: 14px;
+  font-weight: bold;
+}
+
+input {
+  width: 100%;
+  min-height: 38px;
+  padding: 8px 10px;
+  color: #1f2937;
+  background: #ffffff;
+  border: 1px solid #c8d1df;
+  border-radius: 6px;
+  font: inherit;
+}
+
+input:focus {
+  border-color: #4f7ee8;
+  outline: 3px solid rgb(79 126 232 / 18%);
+}
+
+button {
+  min-height: 38px;
+  padding: 8px 14px;
+  color: #ffffff;
+  background: #2458d3;
+  border: 0;
+  border-radius: 6px;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 600;
+}
+
+button:hover {
+  background: #1d49b1;
+}
+
+.button-danger {
+  background: #d33f49;
+}
+
+.button-danger:hover {
+  background: #b8323b;
+}
+
+.sort-links {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin: 0 0 18px;
+  font-size: 15px;
+}
+
+.sort-links span {
+  color: #a1acbc;
+}
+
+.task-list {
+  display: grid;
+  gap: 12px;
+}
+
+.text {
+  padding: 14px 16px;
+  background: #ffffff;
+  border: 1px solid #e2e7f0;
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgb(34 48 74 / 5%);
+}
+
+ul {
+  margin: 0 0 14px;
+  padding-left: 20px;
+  color: #5b6678;
+  font-size: 14px;
+}
+
+.task-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+@media (max-width: 800px) {
+  main {
+    padding: 28px 16px;
+  }
+
+  .task-form {
+    grid-template-columns: 1fr;
+  }
+
+  .task-form button {
+    justify-self: start;
+  }
+
+  .task-actions button {
+    width: auto;
+  }
+}
