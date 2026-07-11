@@ -140,6 +140,24 @@ class TodoViewTestCase(TestCase):
         task.refresh_from_db()
         self.assertFalse(task.completed)
 
+    def test_complete_post_updates_index_status(self):
+        task = Task(title='task1', due_at=timezone.make_aware(datetime(2024, 7, 1)))
+        task.save()
+        client = Client()
+        client.post('/{}/complete/'.format(task.pk))
+        response = client.get('/')
+        self.assertContains(response, 'Status: Completed')
+        self.assertNotContains(response, '<button type="submit">Complete</button>', html=True)
+
+    def test_detail_hides_complete_button_when_completed(self):
+        task = Task(title='task1', completed=True, due_at=timezone.make_aware(datetime(2024, 7, 1)))
+        task.save()
+        client = Client()
+        response = client.get('/{}/'.format(task.pk))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Status: Completed')
+        self.assertNotContains(response, '<button type="submit">Complete</button>', html=True)
+
     def test_complete_post_fail(self):
         client = Client()
         response = client.post('/1/complete/')
