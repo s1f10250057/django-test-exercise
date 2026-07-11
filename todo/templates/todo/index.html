@@ -6,58 +6,66 @@
     <title>To Do Application</title>
     <meta charset="UTF-8">
     <meta name="author" content="INIAD">
+    <link rel="stylesheet" href="{% static 'todo/style.css' %}?v=2">
   </head>
 
   <body>
-    <h1>Sample To Do Application</h1>
-    <p>You can submit tasks from the following form.</p>
-    <form action="{% url 'index' %}" method="post">
-      {% csrf_token %}
-      <div>
-        <label for="titleInput">Title</label><br>
-        <input id="titleInput" name="title" type="text" placeholder="Input title">
-      </div>
-      <div>
-        <label for="dueInput">Due at:</label><br>
-        <input id="dueInput" name="due_at" type="datetime-local">
-      </div>
-      <div>
+    <main>
+      <header class="page-header">
+        <h1>Sample To Do Application</h1>
+        <p>You can submit tasks from the following form.</p>
+      </header>
+
+      <form class="task-form" action="{% url 'index' %}" method="post">
+        {% csrf_token %}
+        <div>
+          <label for="titleInput">Title</label>
+          <input id="titleInput" name="title" type="text" placeholder="Input title">
+        </div>
+        <div>
+          <label for="dueInput">Due at</label>
+          <input id="dueInput" name="due_at" type="datetime-local">
+        </div>
         <button type="submit">Submit</button>
-      </div>
-    </form>
-    <br>
-
-    <div>
-      <a href="{% url 'index' %}?order=due">Sort by Due Date</a> |
-      <a href="{% url 'index' %}?order=post">Sort by Posted Date</a>
-    </div>
-
-    {% for task in tasks %}
-    <div class="text">
-      <h2><a href="{% url 'detail' task.id %}">{{ task.title }}</a></h2>
-      <ul>
-        <li>Posted at: {{ task.posted_at }}</li>
-        {% if task.due_at %} 
-        <li>Due at: {{ task.due_at }}</li>
-        {% endif %}
-        {% if task.completed %} 
-        <li>Status: Completed</li>
-        {% else %}
-        <li>Status: Not Completed</li>
-        {% endif %}
-      </ul>
-      {% if not task.completed %}
-      <form action="{% url 'complete' task.id %}" method="post">
-        {% csrf_token %}
-        <button type="submit">Complete</button>
       </form>
-      {% endif %}
-      <form action="{% url 'delete' task.id %}" method="post">
-        {% csrf_token %}
-        <button type="submit">Delete</button>
-      </form>
-    </div>
-    {% endfor %}
+
+      <nav class="sort-links">
+        <a href="{% url 'index' %}?order=due">Sort by Due Date</a>
+        <span>|</span>
+        <a href="{% url 'index' %}?order=post">Sort by Posted Date</a>
+      </nav>
+
+      <section class="task-list">
+        {% for task in tasks %}
+        <article class="text">
+          <h2><a href="{% url 'detail' task.id %}">{{ task.title }}</a></h2>
+          <ul>
+            <li>Posted at: {{ task.posted_at }}</li>
+            {% if task.due_at %}
+            <li>Due at: {{ task.due_at }}</li>
+            {% endif %}
+            {% if task.completed %}
+            <li>Status: Completed</li>
+            {% else %}
+            <li>Status: Not Completed</li>
+            {% endif %}
+          </ul>
+          <div class="task-actions">
+            {% if not task.completed %}
+            <form action="{% url 'complete' task.id %}" method="post">
+              {% csrf_token %}
+              <button type="submit">Complete</button>
+            </form>
+            {% endif %}
+            <form action="{% url 'delete' task.id %}" method="post">
+              {% csrf_token %}
+              <button class="button-danger" type="submit">Delete</button>
+            </form>
+          </div>
+        </article>
+        {% endfor %}
+      </section>
+    </main>
   </body>
 
 </html>
