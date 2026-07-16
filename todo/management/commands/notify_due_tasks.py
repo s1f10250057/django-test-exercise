@@ -1,6 +1,7 @@
 from django.conf import settings
+from django.contrib.auth import get_user_model
 from django.core.mail import send_mail
-from django.core.management.base import BaseCommand
+from django.core.management.base import BaseCommand, CommandError
 from django.utils import timezone
 
 from todo.models import Task
@@ -11,12 +12,23 @@ class Command(BaseCommand):
 
     def add_arguments(self, parser):
         parser.add_argument('--days', type=int, default=1)
+        parser.add_argument('--owner', default=None)
         parser.add_argument('--recipient', default=None)
 
     def handle(self, *args, **options):
         now = timezone.now()
         due_until = now + timezone.timedelta(days=options['days'])
-        recipient = options['recipient'] or getattr(settings, 'DEFAULT_NOTIFICATION_EMAIL', None)
+        owner = None
+        if options['owner']:
+            try:
+                owner = get_user_model().objects.get_by_natural_key(options['owner'])
+            except get_user_model().DoesNotExist as exc:
+                raise CommandError('Owner does not exist.') from exc
+
+        recipient = options['recipient']
+        if owner is not None and not recipient:
+            recipient = owner.email
+        recipient = recipient or getattr(settings, 'DEFAULT_NOTIFICATION_EMAIL', None)
         sender = getattr(settings, 'DEFAULT_FROM_EMAIL', 'noreply@example.com')
 
         if not recipient:
@@ -29,7 +41,12 @@ class Command(BaseCommand):
             due_at__gte=now,
             due_at__lte=due_until,
             notified_at__isnull=True,
-        ).order_by('due_at')
+        )
+        if owner is None:
+            tasks = tasks.filter(owner__isnull=True)
+        else:
+            tasks = tasks.filter(owner=owner)
+        tasks = tasks.order_by('due_at')
 
         count = 0
         for task in tasks:

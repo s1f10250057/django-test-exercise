@@ -2,6 +2,7 @@ from django.contrib.auth.models import User
 from django.core import mail
 from django.core.management import call_command
 from django.test import TestCase, Client, override_settings
+from django.urls import reverse
 from django.utils import timezone
 from datetime import datetime
 from todo.models import Task, SubTask
@@ -460,3 +461,45 @@ class NotifyDueTasksCommandTestCase(TestCase):
         self.assertEqual(len(mail.outbox), 1)
         task.refresh_from_db()
         self.assertIsNotNone(task.notified_at)
+
+    def test_notify_due_tasks_only_sends_selected_owner_tasks(self):
+        due = timezone.now() + timezone.timedelta(hours=12)
+        alice = User.objects.create_user(
+            username='alice',
+            email='alice@example.com',
+            password='password',
+        )
+        bob = User.objects.create_user(
+            username='bob',
+            email='bob@example.com',
+            password='password',
+        )
+        alice_task = Task.objects.create(title='alice task', owner=alice, due_at=due)
+        bob_task = Task.objects.create(title='bob task', owner=bob, due_at=due)
+
+        call_command('notify_due_tasks', owner='alice')
+
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertEqual(mail.outbox[0].to, ['alice@example.com'])
+        self.assertIn('alice task', mail.outbox[0].body)
+        self.assertNotIn('bob task', mail.outbox[0].body)
+        alice_task.refresh_from_db()
+        bob_task.refresh_from_db()
+        self.assertIsNotNone(alice_task.notified_at)
+        self.assertIsNone(bob_task.notified_at)
+
+
+class TaskAdminTestCase(TestCase):
+    def test_superuser_can_assign_owner_to_legacy_task(self):
+        superuser = User.objects.create_superuser(
+            username='admin',
+            email='admin@example.com',
+            password='password',
+        )
+        legacy_task = Task.objects.create(title='legacy task')
+        self.client.force_login(superuser)
+
+        response = self.client.get(reverse('admin:todo_task_change', args=[legacy_task.pk]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'id_owner')
