@@ -6,6 +6,6 @@ from todo.models import Task
 
 @admin.register(Task)
 class TaskAdmin(admin.ModelAdmin):
-    list_display = ('title', 'owner', 'completed', 'due_at')
-    list_filter = ('owner', 'completed')
+    list_display = ('title', 'owner', 'status', 'due_at')
+    list_filter = ('owner', 'status')
     search_fields = ('title', 'owner__username')
