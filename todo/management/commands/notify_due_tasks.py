@@ -27,8 +27,7 @@ class Command(BaseCommand):
 
         sender = getattr(settings, 'DEFAULT_FROM_EMAIL', 'noreply@example.com')
 
-        tasks = Task.objects.filter(
-            completed=False,
+        tasks = Task.objects.exclude(status=Task.Status.DONE).filter(
             due_at__isnull=False,
             due_at__gte=now,
             due_at__lte=due_until,

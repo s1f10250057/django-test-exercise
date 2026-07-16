@@ -9,7 +9,10 @@ from todo.models import Task
 
 class TaskOwnerMigrationTestCase(TransactionTestCase):
     migrate_from = [('todo', '0005_task_owner')]
-    migrate_to = [('todo', '0006_backfill_task_owner')]
+    migrate_to = [
+        ('todo', '0006_backfill_task_owner'),
+        ('todo', '0006_task_management_fields'),
+    ]
 
     def setUp(self):
         super().setUp()
@@ -54,4 +57,4 @@ class TaskOwnerMigrationTestCase(TransactionTestCase):
 
         self.assertEqual(response.status_code, 302)
         task.refresh_from_db()
-        self.assertTrue(task.completed)
+        self.assertEqual(task.status, Task.Status.DONE)
