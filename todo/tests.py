@@ -1,7 +1,7 @@
 from django.test import TestCase, Client
 from django.utils import timezone
 from datetime import datetime
-from todo.models import Task
+from todo.models import Task, SubTask
 
 # Create your tests here.
 
@@ -36,6 +36,12 @@ class TaskModelTestCase(TestCase):
         task.save()
         task = Task.objects.get(pk=task.pk)
         self.assertEqual(task.tag, 'school')
+
+    def test_delete_task_deletes_subtasks(self):
+        task = Task.objects.create(title='task1')
+        subtask = SubTask.objects.create(task=task, title='subtask1')
+        task.delete()
+        self.assertEqual(SubTask.objects.filter(pk=subtask.pk).count(), 0)
 
     def test_is_overdue_future(self):
         due = timezone.make_aware(datetime(2024, 6, 30, 23, 59, 59))
@@ -122,12 +128,15 @@ class TodoViewTestCase(TestCase):
     def test_detail_get_success(self):
         task = Task(title='task1', tag='study', due_at=timezone.make_aware(datetime(2024, 7, 1)))
         task.save()
+        subtask = SubTask.objects.create(task=task, title='subtask1')
         client = Client()
         response = client.get('/{}/'.format(task.pk))
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.templates[0].name, 'todo/detail.html')
         self.assertEqual(response.context['task'], task)
+        self.assertEqual(response.context['subtasks'][0], subtask)
         self.assertContains(response, 'Tag: study')
+        self.assertContains(response, 'subtask1: Not Completed')
 
     def test_detail_get_fail(self):
         client = Client()
@@ -239,3 +248,62 @@ class TodoViewTestCase(TestCase):
         client = Client()
         response = client.post('/1/complete/')
         self.assertEqual(response.status_code, 404)
+
+    def test_add_subtask_post_success(self):
+        task = Task.objects.create(title='task1')
+        client = Client()
+        response = client.post('/{}/subtasks/add/'.format(task.pk), {'title': 'subtask1'})
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.url, '/{}/'.format(task.pk))
+        subtask = SubTask.objects.get(task=task)
+        self.assertEqual(subtask.title, 'subtask1')
+        self.assertFalse(subtask.completed)
+
+    def test_add_subtask_post_empty_title(self):
+        task = Task.objects.create(title='task1')
+        client = Client()
+        response = client.post('/{}/subtasks/add/'.format(task.pk), {'title': '   '})
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(SubTask.objects.filter(task=task).count(), 0)
+
+    def test_add_subtask_get_not_allowed(self):
+        task = Task.objects.create(title='task1')
+        client = Client()
+        response = client.get('/{}/subtasks/add/'.format(task.pk))
+        self.assertEqual(response.status_code, 405)
+
+    def test_toggle_subtask_post_success(self):
+        task = Task.objects.create(title='task1')
+        subtask = SubTask.objects.create(task=task, title='subtask1')
+        client = Client()
+        response = client.post('/{}/subtasks/{}/toggle/'.format(task.pk, subtask.pk))
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.url, '/{}/'.format(task.pk))
+        subtask.refresh_from_db()
+        self.assertTrue(subtask.completed)
+
+    def test_toggle_subtask_get_not_allowed(self):
+        task = Task.objects.create(title='task1')
+        subtask = SubTask.objects.create(task=task, title='subtask1')
+        client = Client()
+        response = client.get('/{}/subtasks/{}/toggle/'.format(task.pk, subtask.pk))
+        self.assertEqual(response.status_code, 405)
+        subtask.refresh_from_db()
+        self.assertFalse(subtask.completed)
+
+    def test_delete_subtask_post_success(self):
+        task = Task.objects.create(title='task1')
+        subtask = SubTask.objects.create(task=task, title='subtask1')
+        client = Client()
+        response = client.post('/{}/subtasks/{}/delete/'.format(task.pk, subtask.pk))
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.url, '/{}/'.format(task.pk))
+        self.assertEqual(SubTask.objects.filter(pk=subtask.pk).count(), 0)
+
+    def test_delete_subtask_get_not_allowed(self):
+        task = Task.objects.create(title='task1')
+        subtask = SubTask.objects.create(task=task, title='subtask1')
+        client = Client()
+        response = client.get('/{}/subtasks/{}/delete/'.format(task.pk, subtask.pk))
+        self.assertEqual(response.status_code, 405)
+        self.assertEqual(SubTask.objects.filter(pk=subtask.pk).count(), 1)

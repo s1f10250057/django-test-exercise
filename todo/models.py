@@ -15,3 +15,10 @@ class Task(models.Model):
         if self.due_at is None:
             return False
         return self.due_at < dt
+
+
+class SubTask(models.Model):
+    task = models.ForeignKey(Task, on_delete=models.CASCADE, related_name='subtasks')
+    title = models.CharField(max_length=100)
+    completed = models.BooleanField(default=False)
+    created_at = models.DateTimeField(default=timezone.now)

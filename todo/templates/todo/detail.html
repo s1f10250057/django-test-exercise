@@ -38,6 +38,36 @@
       <button type="submit">Delete</button>
     </form>
 
+    <section>
+      <h2>Subtasks</h2>
+      <form action="{% url 'add_subtask' task.id %}" method="post">
+        {% csrf_token %}
+        <label for="subtaskTitleInput">Title</label>
+        <input id="subtaskTitleInput" name="title" type="text" placeholder="Input subtask title">
+        <button type="submit">Add Subtask</button>
+      </form>
+
+      <ul>
+        {% for subtask in subtasks %}
+        <li>
+          {% if subtask.completed %}
+          <span>{{ subtask.title }}: Completed</span>
+          {% else %}
+          <span>{{ subtask.title }}: Not Completed</span>
+          {% endif %}
+          <form action="{% url 'toggle_subtask' task.id subtask.id %}" method="post">
+            {% csrf_token %}
+            <button type="submit">Toggle</button>
+          </form>
+          <form action="{% url 'delete_subtask' task.id subtask.id %}" method="post">
+            {% csrf_token %}
+            <button type="submit">Delete</button>
+          </form>
+        </li>
+        {% endfor %}
+      </ul>
+    </section>
+
     <div>
       <a href="{% url 'index' %}">Top</a>
       <a href="{% url 'update' task.id %}">Edit</a>
