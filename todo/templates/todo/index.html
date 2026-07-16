@@ -23,6 +23,10 @@
           <input id="titleInput" name="title" type="text" placeholder="Input title">
         </div>
         <div>
+          <label for="tagInput">Tag</label>
+          <input id="tagInput" name="tag" type="text" placeholder="Input tag">
+        </div>
+        <div>
           <label for="dueInput">Due at</label>
           <input id="dueInput" name="due_at" type="datetime-local">
         </div>
@@ -41,6 +45,9 @@
           <h2><a href="{% url 'detail' task.id %}">{{ task.title }}</a></h2>
           <ul>
             <li>Posted at: {{ task.posted_at }}</li>
+            {% if task.tag %}
+            <li>Tag: {{ task.tag }}</li>
+            {% endif %}
             {% if task.due_at %}
             <li>Due at: {{ task.due_at }}</li>
             {% endif %}

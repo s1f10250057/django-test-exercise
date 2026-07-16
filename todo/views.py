@@ -6,10 +6,17 @@ from django.utils.dateparse import parse_datetime
 from todo.models import Task
 
 # Create your views here.
+def parse_due_at(value):
+    if not value:
+        return None
+    return make_aware(parse_datetime(value))
+
+
 def index(request):
     if request.method == 'POST':
         task = Task(title=request.POST['title'],
-                    due_at=make_aware(parse_datetime(request.POST['due_at'])))
+                    tag=request.POST.get('tag', ''),
+                    due_at=parse_due_at(request.POST.get('due_at')))
         task.save()
     if request.GET.get('order') == 'due':
         tasks = Task.objects.order_by('due_at')
@@ -39,7 +46,8 @@ def update(request, task_id):
         raise Http404("Task does not exist")
     if request.method == 'POST':
         task.title = request.POST['title']
-        task.due_at = make_aware(parse_datetime(request.POST['due_at']))
+        task.tag = request.POST.get('tag', '')
+        task.due_at = parse_due_at(request.POST.get('due_at'))
         task.save()
         return redirect(detail, task_id)
     context = {
@@ -67,4 +75,3 @@ def complete(request, task_id):
     task.completed = True
     task.save()
     return redirect('index')
-  

@@ -18,6 +18,7 @@ class TaskModelTestCase(TestCase):
         task.save()
         task = Task.objects.get(pk=task.pk)
         self.assertEqual(task.title, 'task1')
+        self.assertEqual(task.tag, '')
         self.assertFalse(task.completed)
         self.assertEqual(task.due_at, due)
 
@@ -26,8 +27,15 @@ class TaskModelTestCase(TestCase):
         task.save()
         task = Task.objects.get(pk=task.pk)
         self.assertEqual(task.title, 'task2')
+        self.assertEqual(task.tag, '')
         self.assertFalse(task.completed)
         self.assertEqual(task.due_at, None)
+
+    def test_create_task_with_tag(self):
+        task = Task(title='task1', tag='school')
+        task.save()
+        task = Task.objects.get(pk=task.pk)
+        self.assertEqual(task.tag, 'school')
 
     def test_is_overdue_future(self):
         due = timezone.make_aware(datetime(2024, 6, 30, 23, 59, 59))
@@ -60,11 +68,20 @@ class TodoViewTestCase(TestCase):
 
     def test_index_post(self):
         client = Client()
-        data = {'title': 'Test Task', 'due_at': '2024-06-30 23:59:59'}
+        data = {'title': 'Test Task', 'tag': 'study', 'due_at': '2024-06-30 23:59:59'}
         response = client.post('/', data)
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.templates[0].name, 'todo/index.html')
         self.assertEqual(len(response.context['tasks']), 1)
+        self.assertEqual(response.context['tasks'][0].tag, 'study')
+
+    def test_index_post_without_tag(self):
+        client = Client()
+        data = {'title': 'Test Task', 'due_at': '2024-06-30 23:59:59'}
+        response = client.post('/', data)
+        self.assertEqual(response.status_code, 200)
+        task = response.context['tasks'][0]
+        self.assertEqual(task.tag, '')
 
     def test_index_get_order_post(self):
         task1 = Task(title='task1', due_at=timezone.make_aware(datetime(2024, 7, 1)))
@@ -91,13 +108,14 @@ class TodoViewTestCase(TestCase):
         self.assertEqual(response.context['tasks'][1], task2)
 
     def test_detail_get_success(self):
-        task = Task(title='task1', due_at=timezone.make_aware(datetime(2024, 7, 1)))
+        task = Task(title='task1', tag='study', due_at=timezone.make_aware(datetime(2024, 7, 1)))
         task.save()
         client = Client()
         response = client.get('/{}/'.format(task.pk))
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.templates[0].name, 'todo/detail.html')
         self.assertEqual(response.context['task'], task)
+        self.assertContains(response, 'Tag: study')
 
     def test_detail_get_fail(self):
         client = Client()
@@ -139,13 +157,24 @@ class TodoViewTestCase(TestCase):
         task = Task(title='task1', due_at=timezone.make_aware(datetime(2024, 7, 1)))
         task.save()
         client = Client()
-        data = {'title': 'Updated Task', 'due_at': '2024-08-01 23:59:59'}
+        data = {'title': 'Updated Task', 'tag': 'work', 'due_at': '2024-08-01 23:59:59'}
         response = client.post('/{}/update'.format(task.pk), data)
         self.assertEqual(response.status_code, 302)
         self.assertEqual(response.url, '/{}/'.format(task.pk))
         task.refresh_from_db()
         self.assertEqual(task.title, 'Updated Task')
+        self.assertEqual(task.tag, 'work')
         self.assertEqual(task.due_at, timezone.make_aware(datetime(2024, 8, 1, 23, 59, 59)))
+
+    def test_update_post_without_tag(self):
+        task = Task(title='task1', tag='study', due_at=timezone.make_aware(datetime(2024, 7, 1)))
+        task.save()
+        client = Client()
+        data = {'title': 'Updated Task', 'due_at': '2024-08-01 23:59:59'}
+        response = client.post('/{}/update'.format(task.pk), data)
+        self.assertEqual(response.status_code, 302)
+        task.refresh_from_db()
+        self.assertEqual(task.tag, '')
 
     def test_update_get_fail(self):
         client = Client()
