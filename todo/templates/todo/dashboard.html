@@ -1,0 +1,62 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="ja">
+
+  <head>
+    <title>ダッシュボード | Task Board</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="{% static 'todo/style.css' %}?v=6">
+  </head>
+
+  <body>
+    <main class="page-shell">
+      <header class="page-header">
+        <div>
+          <p class="eyebrow">DASHBOARD</p>
+          <h1>タスク状況</h1>
+          <p>期限と進捗をまとめて確認できます。</p>
+        </div>
+        <a class="button-secondary" href="{% url 'index' %}">タスクボードへ戻る</a>
+      </header>
+
+      <section class="dashboard-summary" aria-label="進捗サマリー">
+        {% for item in status_summary %}
+        <article class="summary-item summary-item-{{ item.value }}">
+          <span>{{ item.label }}</span>
+          <strong>{{ item.count }}</strong>
+        </article>
+        {% endfor %}
+        <article class="summary-item summary-item-rate">
+          <span>完了率</span>
+          <strong>{{ completion_rate }}%</strong>
+          <small>全{{ total_count }}件</small>
+        </article>
+      </section>
+
+      <div class="dashboard-grid">
+        <section class="dashboard-section" aria-labelledby="today-heading">
+          <header>
+            <h2 id="today-heading">今日が期限</h2>
+          </header>
+          {% include 'todo/dashboard_task_list.html' with tasks=today_tasks empty_message='今日が期限のタスクはありません。' %}
+        </section>
+
+        <section class="dashboard-section dashboard-section-overdue" aria-labelledby="overdue-heading">
+          <header>
+            <h2 id="overdue-heading">期限切れ・未完了</h2>
+          </header>
+          {% include 'todo/dashboard_task_list.html' with tasks=overdue_tasks empty_message='期限切れの未完了タスクはありません。' %}
+        </section>
+
+        <section class="dashboard-section" aria-labelledby="upcoming-heading">
+          <header>
+            <h2 id="upcoming-heading">今後7日</h2>
+          </header>
+          {% include 'todo/dashboard_task_list.html' with tasks=upcoming_tasks empty_message='今後7日が期限のタスクはありません。' %}
+        </section>
+      </div>
+    </main>
+  </body>
+
+</html>
