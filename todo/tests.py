@@ -1,4 +1,6 @@
-from django.test import TestCase, Client
+from django.core import mail
+from django.core.management import call_command
+from django.test import TestCase, Client, override_settings
 from django.utils import timezone
 from datetime import datetime
 from todo.models import Task, SubTask
@@ -19,6 +21,7 @@ class TaskModelTestCase(TestCase):
         task = Task.objects.get(pk=task.pk)
         self.assertEqual(task.title, 'task1')
         self.assertEqual(task.tag, '')
+        self.assertEqual(task.recurrence, Task.RECURRENCE_NONE)
         self.assertFalse(task.completed)
         self.assertEqual(task.due_at, due)
 
@@ -42,6 +45,36 @@ class TaskModelTestCase(TestCase):
         subtask = SubTask.objects.create(task=task, title='subtask1')
         task.delete()
         self.assertEqual(SubTask.objects.filter(pk=subtask.pk).count(), 0)
+
+    def test_next_due_at_daily(self):
+        due = timezone.make_aware(datetime(2024, 7, 1, 10, 0, 0))
+        task = Task(title='task1', recurrence=Task.RECURRENCE_DAILY, due_at=due)
+        self.assertEqual(task.next_due_at(), timezone.make_aware(datetime(2024, 7, 2, 10, 0, 0)))
+
+    def test_next_due_at_weekly(self):
+        due = timezone.make_aware(datetime(2024, 7, 1, 10, 0, 0))
+        task = Task(title='task1', recurrence=Task.RECURRENCE_WEEKLY, due_at=due)
+        self.assertEqual(task.next_due_at(), timezone.make_aware(datetime(2024, 7, 8, 10, 0, 0)))
+
+    def test_next_due_at_monthly(self):
+        due = timezone.make_aware(datetime(2024, 1, 31, 10, 0, 0))
+        task = Task(title='task1', recurrence=Task.RECURRENCE_MONTHLY, due_at=due)
+        self.assertEqual(task.next_due_at(), timezone.make_aware(datetime(2024, 2, 29, 10, 0, 0)))
+
+    def test_create_next_occurrence(self):
+        due = timezone.make_aware(datetime(2024, 7, 1, 10, 0, 0))
+        task = Task.objects.create(
+            title='task1',
+            tag='study',
+            recurrence=Task.RECURRENCE_DAILY,
+            due_at=due,
+        )
+        next_task = task.create_next_occurrence()
+        self.assertEqual(next_task.title, 'task1')
+        self.assertEqual(next_task.tag, 'study')
+        self.assertEqual(next_task.recurrence, Task.RECURRENCE_DAILY)
+        self.assertEqual(next_task.due_at, timezone.make_aware(datetime(2024, 7, 2, 10, 0, 0)))
+        self.assertFalse(next_task.completed)
 
     def test_is_overdue_future(self):
         due = timezone.make_aware(datetime(2024, 6, 30, 23, 59, 59))
@@ -74,12 +107,18 @@ class TodoViewTestCase(TestCase):
 
     def test_index_post(self):
         client = Client()
-        data = {'title': 'Test Task', 'tag': 'study', 'due_at': '2024-06-30 23:59:59'}
+        data = {
+            'title': 'Test Task',
+            'tag': 'study',
+            'recurrence': Task.RECURRENCE_DAILY,
+            'due_at': '2024-06-30 23:59:59',
+        }
         response = client.post('/', data)
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.templates[0].name, 'todo/index.html')
         self.assertEqual(len(response.context['tasks']), 1)
         self.assertEqual(response.context['tasks'][0].tag, 'study')
+        self.assertEqual(response.context['tasks'][0].recurrence, Task.RECURRENCE_DAILY)
 
     def test_index_post_without_tag(self):
         client = Client()
@@ -178,13 +217,19 @@ class TodoViewTestCase(TestCase):
         task = Task(title='task1', due_at=timezone.make_aware(datetime(2024, 7, 1)))
         task.save()
         client = Client()
-        data = {'title': 'Updated Task', 'tag': 'work', 'due_at': '2024-08-01 23:59:59'}
+        data = {
+            'title': 'Updated Task',
+            'tag': 'work',
+            'recurrence': Task.RECURRENCE_WEEKLY,
+            'due_at': '2024-08-01 23:59:59',
+        }
         response = client.post('/{}/update'.format(task.pk), data)
         self.assertEqual(response.status_code, 302)
         self.assertEqual(response.url, '/{}/'.format(task.pk))
         task.refresh_from_db()
         self.assertEqual(task.title, 'Updated Task')
         self.assertEqual(task.tag, 'work')
+        self.assertEqual(task.recurrence, Task.RECURRENCE_WEEKLY)
         self.assertEqual(task.due_at, timezone.make_aware(datetime(2024, 8, 1, 23, 59, 59)))
 
     def test_update_post_without_tag(self):
@@ -216,6 +261,24 @@ class TodoViewTestCase(TestCase):
         self.assertEqual(response.url, '/')
         task.refresh_from_db()
         self.assertTrue(task.completed)
+
+    def test_complete_post_creates_next_recurring_task(self):
+        due = timezone.make_aware(datetime(2024, 7, 1, 10, 0, 0))
+        task = Task.objects.create(title='task1', recurrence=Task.RECURRENCE_DAILY, due_at=due)
+        client = Client()
+        response = client.post('/{}/complete/'.format(task.pk))
+        self.assertEqual(response.status_code, 302)
+        next_task = Task.objects.exclude(pk=task.pk).get()
+        self.assertEqual(next_task.title, 'task1')
+        self.assertEqual(next_task.due_at, timezone.make_aware(datetime(2024, 7, 2, 10, 0, 0)))
+
+    def test_complete_post_creates_one_next_task_only_once(self):
+        due = timezone.make_aware(datetime(2024, 7, 1, 10, 0, 0))
+        task = Task.objects.create(title='task1', recurrence=Task.RECURRENCE_DAILY, due_at=due)
+        client = Client()
+        client.post('/{}/complete/'.format(task.pk))
+        client.post('/{}/complete/'.format(task.pk))
+        self.assertEqual(Task.objects.exclude(pk=task.pk).count(), 1)
 
     def test_complete_get_not_allowed(self):
         task = Task(title='task1', due_at=timezone.make_aware(datetime(2024, 7, 1)))
@@ -307,3 +370,29 @@ class TodoViewTestCase(TestCase):
         response = client.get('/{}/subtasks/{}/delete/'.format(task.pk, subtask.pk))
         self.assertEqual(response.status_code, 405)
         self.assertEqual(SubTask.objects.filter(pk=subtask.pk).count(), 1)
+
+
+@override_settings(EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend')
+class NotifyDueTasksCommandTestCase(TestCase):
+    def test_notify_due_tasks_sends_due_soon_task(self):
+        due = timezone.now() + timezone.timedelta(hours=12)
+        task = Task.objects.create(title='task1', due_at=due)
+        call_command('notify_due_tasks', recipient='student@example.com')
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertIn('task1', mail.outbox[0].body)
+        task.refresh_from_db()
+        self.assertIsNotNone(task.notified_at)
+
+    def test_notify_due_tasks_skips_completed_and_far_tasks(self):
+        Task.objects.create(title='completed', completed=True, due_at=timezone.now() + timezone.timedelta(hours=12))
+        Task.objects.create(title='far', due_at=timezone.now() + timezone.timedelta(days=3))
+        call_command('notify_due_tasks', recipient='student@example.com')
+        self.assertEqual(len(mail.outbox), 0)
+
+    def test_notify_due_tasks_does_not_send_duplicate_notifications(self):
+        task = Task.objects.create(title='task1', due_at=timezone.now() + timezone.timedelta(hours=12))
+        call_command('notify_due_tasks', recipient='student@example.com')
+        call_command('notify_due_tasks', recipient='student@example.com')
+        self.assertEqual(len(mail.outbox), 1)
+        task.refresh_from_db()
+        self.assertIsNotNone(task.notified_at)

@@ -30,6 +30,14 @@
           <label for="dueInput">Due at</label>
           <input id="dueInput" name="due_at" type="datetime-local">
         </div>
+        <div>
+          <label for="recurrenceInput">Repeat</label>
+          <select id="recurrenceInput" name="recurrence">
+            {% for value, label in recurrence_choices %}
+            <option value="{{ value }}">{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
         <button type="submit">Submit</button>
       </form>
 
@@ -52,6 +60,9 @@
             {% endif %}
             {% if task.due_at %}
             <li>Due at: {{ task.due_at }}</li>
+            {% endif %}
+            {% if task.recurrence != 'none' %}
+            <li>Repeat: {{ task.get_recurrence_display }}</li>
             {% endif %}
             {% if task.completed %}
             <li>Status: Completed</li>
