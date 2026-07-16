@@ -21,6 +21,8 @@
       <div>
         <label for="tagInput">Tag</label><br>
         <input id="tagInput" name="tag" type="text" placeholder="Input tag" value="{{ task.tag }}">
+        <label for="descInput">Description</label><br>
+        <textarea id="descInput" name="description" placeholder="Input description">{% if task.description %}{{ task.description }}{% endif %}</textarea>
       </div>
       <div>
         <label for="dueInput">Due at:</label><br>

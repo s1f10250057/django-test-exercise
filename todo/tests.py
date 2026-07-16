@@ -435,6 +435,19 @@ class TodoViewTestCase(TestCase):
         self.assertEqual(response.status_code, 404)
         self.assertEqual(SubTask.objects.filter(pk=subtask.pk).count(), 1)
 
+    def test_create_task_with_description(self):
+        task = Task(title='Task with Desc', description='This is a memo.')
+        task.save()
+        saved_task = Task.objects.get(pk=task.pk)
+        self.assertEqual(saved_task.description, 'This is a memo.')
+
+    def test_create_task_without_description(self):
+        task = Task(title='No Desc Task')
+        task.save()
+        saved_task = Task.objects.get(pk=task.pk)
+        self.assertIn(saved_task.description, [None, ''])
+
+
 
 @override_settings(EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend')
 class NotifyDueTasksCommandTestCase(TestCase):

@@ -26,6 +26,7 @@ class Task(models.Model):
     )
     title = models.CharField(max_length=100)
     tag = models.CharField(max_length=50, blank=True)
+    description = models.TextField(null=True, blank=True)
     completed = models.BooleanField(default=False)
     recurrence = models.CharField(max_length=10, choices=RECURRENCE_CHOICES, default=RECURRENCE_NONE)
     posted_at = models.DateTimeField(default=timezone.now)

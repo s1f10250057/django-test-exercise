@@ -29,7 +29,8 @@ def index(request):
                     owner=request.user,
                     tag=request.POST.get('tag', ''),
                     recurrence=request.POST.get('recurrence', Task.RECURRENCE_NONE),
-                    due_at=parse_due_at(request.POST.get('due_at')))
+                    description=request.POST.get('description', ''),
+                    due_at=make_aware(parse_datetime(request.POST['due_at'])))
         task.save()
     tasks = Task.objects.filter(owner=request.user)
     if request.GET.get('order') == 'due':
@@ -63,6 +64,7 @@ def update(request, task_id):
         task.tag = request.POST.get('tag', '')
         task.recurrence = request.POST.get('recurrence', Task.RECURRENCE_NONE)
         task.due_at = parse_due_at(request.POST.get('due_at'))
+        task.description = request.POST.get('description', '')
         task.save()
         return redirect('detail', task_id=task.id)
     context = {

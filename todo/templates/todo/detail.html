@@ -27,6 +27,7 @@
       {% else %}
       <li>Status: Not Completed</li>
       {% endif %}
+      <li>Description: {{ task.description|default:"No description" }}</li>
     </ul>
 
     {% if not task.completed %}
