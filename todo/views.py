@@ -20,6 +20,8 @@ def index(request):
         task.save()
     if request.GET.get('order') == 'due':
         tasks = Task.objects.order_by('due_at')
+    elif request.GET.get('order') == 'tag':
+        tasks = Task.objects.order_by('tag', '-posted_at')
     else:
         tasks = Task.objects.order_by('-posted_at')
     context = {
