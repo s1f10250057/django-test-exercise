@@ -19,6 +19,9 @@
       {% if task.due_at %}
       <li>Due at: {{ task.due_at }}</li>
       {% endif %}
+      {% if task.recurrence != 'none' %}
+      <li>Repeat: {{ task.get_recurrence_display }}</li>
+      {% endif %}
       {% if task.completed %}
       <li>Status: Completed</li>
       {% else %}

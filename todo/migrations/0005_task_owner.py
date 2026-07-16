@@ -8,7 +8,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('todo', '0003_subtask'),
+        ('todo', '0004_task_notified_at_task_recurrence'),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
     ]
 
