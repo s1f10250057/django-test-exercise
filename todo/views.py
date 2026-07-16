@@ -3,7 +3,7 @@ from django.http import Http404
 from django.views.decorators.http import require_POST
 from django.utils.timezone import make_aware
 from django.utils.dateparse import parse_datetime
-from todo.models import Task
+from todo.models import Task, SubTask
 
 # Create your views here.
 def parse_due_at(value):
@@ -37,6 +37,7 @@ def detail(request, task_id):
         raise Http404("Task does not exist")
     context = {
         'task': task,
+        'subtasks': task.subtasks.order_by('created_at'),
     }
     return render(request, 'todo/detail.html', context)
 
@@ -77,3 +78,36 @@ def complete(request, task_id):
     task.completed = True
     task.save()
     return redirect('index')
+
+
+@require_POST
+def add_subtask(request, task_id):
+    try:
+        task = Task.objects.get(pk=task_id)
+    except Task.DoesNotExist:
+        raise Http404("Task does not exist")
+    title = request.POST.get('title', '').strip()
+    if title:
+        SubTask.objects.create(task=task, title=title)
+    return redirect(detail, task_id)
+
+
+@require_POST
+def toggle_subtask(request, task_id, subtask_id):
+    try:
+        subtask = SubTask.objects.get(pk=subtask_id, task_id=task_id)
+    except SubTask.DoesNotExist:
+        raise Http404("SubTask does not exist")
+    subtask.completed = not subtask.completed
+    subtask.save()
+    return redirect(detail, task_id)
+
+
+@require_POST
+def delete_subtask(request, task_id, subtask_id):
+    try:
+        subtask = SubTask.objects.get(pk=subtask_id, task_id=task_id)
+    except SubTask.DoesNotExist:
+        raise Http404("SubTask does not exist")
+    subtask.delete()
+    return redirect(detail, task_id)
