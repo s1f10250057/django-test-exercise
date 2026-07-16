@@ -3,42 +3,37 @@
 <html lang="ja">
 
   <head>
-    <title>To Do Application</title>
+    <title>タスク編集 | Task Board</title>
     <meta charset="UTF-8">
-    <meta name="author" content="INIAD">
-    <link rel="stylesheet" href="{% static 'todo/style.css' %}?v=2">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="{% static 'todo/style.css' %}?v=5">
   </head>
 
   <body>
-    <h1>Edit task</h1>
-    <p>You can edit tasks from the following form.</p>
-    <form action="{% url 'update' task.id%}" method="post">
-      {% csrf_token %}
-      <div>
-        <label for="titleInput">Title</label><br>
-        <input id="titleInput" name="title" type="text" placeholder="Input title" value="{{ task.title }}">
-      </div>
-      <div>
-        <label for="tagInput">Tag</label><br>
-        <input id="tagInput" name="tag" type="text" placeholder="Input tag" value="{{ task.tag }}">
-      </div>
-      <div>
-        <label for="dueInput">Due at:</label><br>
-        <input id="dueInput" name="due_at" type="datetime-local" value="{{ task.due_at|date:"Y-m-d\TH:i" }}">
-      </div>
-      <div>
-        <label for="recurrenceInput">Repeat</label><br>
-        <select id="recurrenceInput" name="recurrence">
-          {% for value, label in recurrence_choices %}
-          <option value="{{ value }}" {% if task.recurrence == value %}selected{% endif %}>{{ label }}</option>
+    <main class="page-shell page-shell-narrow">
+      <header class="page-header">
+        <div>
+          <p class="eyebrow">EDIT TASK</p>
+          <h1>タスクを編集</h1>
+        </div>
+      </header>
+      <section class="panel">
+        <form class="edit-form" action="{% url 'update' task.id %}" method="post">
+          {% csrf_token %}
+          {% for field in form %}
+          <div class="field">
+            <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+            {{ field }}
+            {{ field.errors }}
+          </div>
           {% endfor %}
-        </select>
-      </div>
-      <div>
-        <button type="submit">Submit</button>
-      </div>
-    </form>
-    <br>
+          <div class="form-actions">
+            <button type="submit">保存</button>
+            <a class="button-secondary" href="{% url 'detail' task.id %}">キャンセル</a>
+          </div>
+        </form>
+      </section>
+    </main>
   </body>
 
 </html>

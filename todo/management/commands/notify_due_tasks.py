@@ -23,8 +23,7 @@ class Command(BaseCommand):
             self.stdout.write('No recipient configured.')
             return
 
-        tasks = Task.objects.filter(
-            completed=False,
+        tasks = Task.objects.exclude(status=Task.Status.DONE).filter(
             due_at__isnull=False,
             due_at__gte=now,
             due_at__lte=due_until,
@@ -40,7 +39,7 @@ class Command(BaseCommand):
                 [recipient],
             )
             task.notified_at = now
-            task.save()
+            task.save(update_fields=['notified_at'])
             count += 1
 
         self.stdout.write('Sent {} notification(s).'.format(count))

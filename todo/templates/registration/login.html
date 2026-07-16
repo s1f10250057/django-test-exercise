@@ -3,35 +3,40 @@
 <html lang="ja">
 
   <head>
-    <title>Login - To Do Application</title>
+    <title>ログイン | Task Board</title>
     <meta charset="UTF-8">
-    <meta name="author" content="INIAD">
-    <link rel="stylesheet" href="{% static 'todo/style.css' %}?v=2">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="{% static 'todo/style.css' %}?v=5">
   </head>
 
   <body>
-    <main>
+    <main class="page-shell page-shell-narrow">
       <header class="page-header">
-        <h1>Login</h1>
+        <div>
+          <p class="eyebrow">TASK MANAGEMENT</p>
+          <h1>ログイン</h1>
+        </div>
       </header>
 
+      <section class="panel">
       {% if form.errors %}
-      <p>Username or password is incorrect.</p>
+      <p class="login-error">ユーザー名またはパスワードが正しくありません。</p>
       {% endif %}
 
-      <form class="task-form" method="post">
+      <form class="edit-form" method="post">
         {% csrf_token %}
-        <div>
-          <label for="{{ form.username.id_for_label }}">Username</label>
+        <div class="field">
+          <label for="{{ form.username.id_for_label }}">ユーザー名</label>
           {{ form.username }}
         </div>
-        <div>
-          <label for="{{ form.password.id_for_label }}">Password</label>
+        <div class="field">
+          <label for="{{ form.password.id_for_label }}">パスワード</label>
           {{ form.password }}
         </div>
-        <button type="submit">Login</button>
+        <button type="submit">ログイン</button>
         <input type="hidden" name="next" value="{{ next }}">
       </form>
+      </section>
     </main>
   </body>
 
