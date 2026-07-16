@@ -14,6 +14,11 @@
       <header class="page-header">
         <h1>Sample To Do Application</h1>
         <p>You can submit tasks from the following form.</p>
+        <p>Logged in as: {{ request.user.username }}</p>
+        <form action="{% url 'logout' %}" method="post">
+          {% csrf_token %}
+          <button type="submit">Logout</button>
+        </form>
       </header>
 
       <form class="task-form" action="{% url 'index' %}" method="post">

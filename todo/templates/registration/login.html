@@ -1,0 +1,38 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="ja">
+
+  <head>
+    <title>Login - To Do Application</title>
+    <meta charset="UTF-8">
+    <meta name="author" content="INIAD">
+    <link rel="stylesheet" href="{% static 'todo/style.css' %}?v=2">
+  </head>
+
+  <body>
+    <main>
+      <header class="page-header">
+        <h1>Login</h1>
+      </header>
+
+      {% if form.errors %}
+      <p>Username or password is incorrect.</p>
+      {% endif %}
+
+      <form class="task-form" method="post">
+        {% csrf_token %}
+        <div>
+          <label for="{{ form.username.id_for_label }}">Username</label>
+          {{ form.username }}
+        </div>
+        <div>
+          <label for="{{ form.password.id_for_label }}">Password</label>
+          {{ form.password }}
+        </div>
+        <button type="submit">Login</button>
+        <input type="hidden" name="next" value="{{ next }}">
+      </form>
+    </main>
+  </body>
+
+</html>
