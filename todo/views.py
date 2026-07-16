@@ -16,6 +16,7 @@ def index(request):
     if request.method == 'POST':
         task = Task(title=request.POST['title'],
                     tag=request.POST.get('tag', ''),
+                    recurrence=request.POST.get('recurrence', Task.RECURRENCE_NONE),
                     due_at=parse_due_at(request.POST.get('due_at')))
         task.save()
     if request.GET.get('order') == 'due':
@@ -25,7 +26,8 @@ def index(request):
     else:
         tasks = Task.objects.order_by('-posted_at')
     context = {
-        'tasks': tasks
+        'tasks': tasks,
+        'recurrence_choices': Task.RECURRENCE_CHOICES,
     }
     return render(request, 'todo/index.html', context)
 
@@ -50,11 +52,13 @@ def update(request, task_id):
     if request.method == 'POST':
         task.title = request.POST['title']
         task.tag = request.POST.get('tag', '')
+        task.recurrence = request.POST.get('recurrence', Task.RECURRENCE_NONE)
         task.due_at = parse_due_at(request.POST.get('due_at'))
         task.save()
         return redirect(detail, task_id)
     context = {
-        'task': task
+        'task': task,
+        'recurrence_choices': Task.RECURRENCE_CHOICES,
     }
     return render(request, "todo/edit.html", context)
 
@@ -75,8 +79,11 @@ def complete(request, task_id):
         task = Task.objects.get(pk=task_id)
     except Task.DoesNotExist:
         raise Http404("Task does not exist")
+    was_completed = task.completed
     task.completed = True
     task.save()
+    if not was_completed:
+        task.create_next_occurrence()
     return redirect('index')
 
 

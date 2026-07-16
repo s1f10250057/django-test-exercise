@@ -56,7 +56,7 @@ form {
 
 .task-form {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 150px 220px auto;
+  grid-template-columns: minmax(0, 1fr) 150px 220px 130px auto;
   gap: 12px;
   align-items: end;
   margin-bottom: 16px;
@@ -75,7 +75,8 @@ label {
   font-weight: bold;
 }
 
-input {
+input,
+select {
   width: 100%;
   min-height: 38px;
   padding: 8px 10px;
@@ -86,7 +87,8 @@ input {
   font: inherit;
 }
 
-input:focus {
+input:focus,
+select:focus {
   border-color: #4f7ee8;
   outline: 3px solid rgb(79 126 232 / 18%);
 }

@@ -27,6 +27,14 @@
         <input id="dueInput" name="due_at" type="datetime-local" value="{{ task.due_at|date:"Y-m-d\TH:i" }}">
       </div>
       <div>
+        <label for="recurrenceInput">Repeat</label><br>
+        <select id="recurrenceInput" name="recurrence">
+          {% for value, label in recurrence_choices %}
+          <option value="{{ value }}" {% if task.recurrence == value %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
         <button type="submit">Submit</button>
       </div>
     </form>
