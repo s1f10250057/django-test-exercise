@@ -22,8 +22,6 @@ class Task(models.Model):
     owner = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
-        null=True,
-        blank=True,
         related_name='tasks',
     )
     title = models.CharField(max_length=100)

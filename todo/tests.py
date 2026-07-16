@@ -16,10 +16,16 @@ class SampleTestCase(TestCase):
 
 
 class TaskModelTestCase(TestCase):
+    def setUp(self):
+        self.owner = User.objects.create_user(username='owner', password='password')
+
+    def create_task(self, **kwargs):
+        kwargs.setdefault('owner', self.owner)
+        return Task.objects.create(**kwargs)
+
     def test_create_task1(self):
         due = timezone.make_aware(datetime(2024, 6, 30, 23, 59, 59))
-        task = Task(title='task1', due_at=due)
-        task.save()
+        task = self.create_task(title='task1', due_at=due)
         task = Task.objects.get(pk=task.pk)
         self.assertEqual(task.title, 'task1')
         self.assertEqual(task.tag, '')
@@ -28,8 +34,7 @@ class TaskModelTestCase(TestCase):
         self.assertEqual(task.due_at, due)
 
     def test_create_task2(self):
-        task = Task(title='task2')
-        task.save()
+        task = self.create_task(title='task2')
         task = Task.objects.get(pk=task.pk)
         self.assertEqual(task.title, 'task2')
         self.assertEqual(task.tag, '')
@@ -37,35 +42,34 @@ class TaskModelTestCase(TestCase):
         self.assertEqual(task.due_at, None)
 
     def test_create_task_with_tag(self):
-        task = Task(title='task1', tag='school')
-        task.save()
+        task = self.create_task(title='task1', tag='school')
         task = Task.objects.get(pk=task.pk)
         self.assertEqual(task.tag, 'school')
 
     def test_delete_task_deletes_subtasks(self):
-        task = Task.objects.create(title='task1')
+        task = self.create_task(title='task1')
         subtask = SubTask.objects.create(task=task, title='subtask1')
         task.delete()
         self.assertEqual(SubTask.objects.filter(pk=subtask.pk).count(), 0)
 
     def test_next_due_at_daily(self):
         due = timezone.make_aware(datetime(2024, 7, 1, 10, 0, 0))
-        task = Task(title='task1', recurrence=Task.RECURRENCE_DAILY, due_at=due)
+        task = Task(owner=self.owner, title='task1', recurrence=Task.RECURRENCE_DAILY, due_at=due)
         self.assertEqual(task.next_due_at(), timezone.make_aware(datetime(2024, 7, 2, 10, 0, 0)))
 
     def test_next_due_at_weekly(self):
         due = timezone.make_aware(datetime(2024, 7, 1, 10, 0, 0))
-        task = Task(title='task1', recurrence=Task.RECURRENCE_WEEKLY, due_at=due)
+        task = Task(owner=self.owner, title='task1', recurrence=Task.RECURRENCE_WEEKLY, due_at=due)
         self.assertEqual(task.next_due_at(), timezone.make_aware(datetime(2024, 7, 8, 10, 0, 0)))
 
     def test_next_due_at_monthly(self):
         due = timezone.make_aware(datetime(2024, 1, 31, 10, 0, 0))
-        task = Task(title='task1', recurrence=Task.RECURRENCE_MONTHLY, due_at=due)
+        task = Task(owner=self.owner, title='task1', recurrence=Task.RECURRENCE_MONTHLY, due_at=due)
         self.assertEqual(task.next_due_at(), timezone.make_aware(datetime(2024, 2, 29, 10, 0, 0)))
 
     def test_create_next_occurrence(self):
         due = timezone.make_aware(datetime(2024, 7, 1, 10, 0, 0))
-        task = Task.objects.create(
+        task = self.create_task(
             title='task1',
             tag='study',
             recurrence=Task.RECURRENCE_DAILY,
@@ -81,21 +85,18 @@ class TaskModelTestCase(TestCase):
     def test_is_overdue_future(self):
         due = timezone.make_aware(datetime(2024, 6, 30, 23, 59, 59))
         current = timezone.make_aware(datetime(2024, 6, 30, 0, 0, 0))
-        task = Task(title='task1', due_at=due)
-        task.save()
+        task = self.create_task(title='task1', due_at=due)
         self.assertFalse(task.is_overdue(current))
 
     def test_is_overdue_past(self):
         due = timezone.make_aware(datetime(2024, 6, 30, 23, 59, 59))
         current = timezone.make_aware(datetime(2024, 7, 1, 0, 0, 0))
-        task = Task(title='task1', due_at=due)
-        task.save()
+        task = self.create_task(title='task1', due_at=due)
         self.assertTrue(task.is_overdue(current))
 
     def test_is_overdue_none(self):
         current = timezone.make_aware(datetime(2024, 7, 1, 0, 0, 0))
-        task = Task(title='task1')
-        task.save()
+        task = self.create_task(title='task1')
         self.assertFalse(task.is_overdue(current))
 
 
@@ -171,12 +172,10 @@ class TodoViewTestCase(TestCase):
     def test_index_get_only_own_tasks(self):
         own_task = self.create_task(title='own task')
         Task.objects.create(title='other task', owner=self.other_user)
-        Task.objects.create(title='legacy task')
         response = self.client.get('/')
         self.assertEqual(list(response.context['tasks']), [own_task])
         self.assertContains(response, 'own task')
         self.assertNotContains(response, 'other task')
-        self.assertNotContains(response, 'legacy task')
 
     def test_index_get_order_post(self):
         task1 = self.create_task(title='task1', due_at=timezone.make_aware(datetime(2024, 7, 1)))
@@ -439,25 +438,38 @@ class TodoViewTestCase(TestCase):
 
 @override_settings(EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend')
 class NotifyDueTasksCommandTestCase(TestCase):
+    def setUp(self):
+        self.owner = User.objects.create_user(
+            username='owner',
+            email='owner@example.com',
+            password='password',
+        )
+
+    def create_task(self, **kwargs):
+        kwargs.setdefault('owner', self.owner)
+        return Task.objects.create(**kwargs)
+
     def test_notify_due_tasks_sends_due_soon_task(self):
         due = timezone.now() + timezone.timedelta(hours=12)
-        task = Task.objects.create(title='task1', due_at=due)
-        call_command('notify_due_tasks', recipient='student@example.com')
+        task = self.create_task(title='task1', due_at=due)
+        call_command('notify_due_tasks')
         self.assertEqual(len(mail.outbox), 1)
+        self.assertEqual(mail.outbox[0].to, ['owner@example.com'])
         self.assertIn('task1', mail.outbox[0].body)
         task.refresh_from_db()
         self.assertIsNotNone(task.notified_at)
 
     def test_notify_due_tasks_skips_completed_and_far_tasks(self):
-        Task.objects.create(title='completed', completed=True, due_at=timezone.now() + timezone.timedelta(hours=12))
-        Task.objects.create(title='far', due_at=timezone.now() + timezone.timedelta(days=3))
-        call_command('notify_due_tasks', recipient='student@example.com')
+        self.create_task(title='completed', completed=True,
+                         due_at=timezone.now() + timezone.timedelta(hours=12))
+        self.create_task(title='far', due_at=timezone.now() + timezone.timedelta(days=3))
+        call_command('notify_due_tasks')
         self.assertEqual(len(mail.outbox), 0)
 
     def test_notify_due_tasks_does_not_send_duplicate_notifications(self):
-        task = Task.objects.create(title='task1', due_at=timezone.now() + timezone.timedelta(hours=12))
-        call_command('notify_due_tasks', recipient='student@example.com')
-        call_command('notify_due_tasks', recipient='student@example.com')
+        task = self.create_task(title='task1', due_at=timezone.now() + timezone.timedelta(hours=12))
+        call_command('notify_due_tasks')
+        call_command('notify_due_tasks')
         self.assertEqual(len(mail.outbox), 1)
         task.refresh_from_db()
         self.assertIsNotNone(task.notified_at)
@@ -488,6 +500,36 @@ class NotifyDueTasksCommandTestCase(TestCase):
         self.assertIsNotNone(alice_task.notified_at)
         self.assertIsNone(bob_task.notified_at)
 
+    def test_notify_due_tasks_keeps_owner_notifications_separate(self):
+        due = timezone.now() + timezone.timedelta(hours=12)
+        bob = User.objects.create_user(
+            username='bob',
+            email='bob@example.com',
+            password='password',
+        )
+        self.create_task(title='owner private', due_at=due)
+        Task.objects.create(title='bob private', owner=bob, due_at=due)
+
+        call_command('notify_due_tasks')
+
+        self.assertEqual(len(mail.outbox), 2)
+        messages = {message.to[0]: message.body for message in mail.outbox}
+        self.assertIn('owner private', messages['owner@example.com'])
+        self.assertNotIn('bob private', messages['owner@example.com'])
+        self.assertIn('bob private', messages['bob@example.com'])
+        self.assertNotIn('owner private', messages['bob@example.com'])
+
+    def test_notify_due_tasks_skips_owner_without_email(self):
+        due = timezone.now() + timezone.timedelta(hours=12)
+        owner_without_email = User.objects.create_user(username='no-email', password='password')
+        task = Task.objects.create(title='private task', owner=owner_without_email, due_at=due)
+
+        call_command('notify_due_tasks')
+
+        self.assertEqual(len(mail.outbox), 0)
+        task.refresh_from_db()
+        self.assertIsNone(task.notified_at)
+
 
 class TaskAdminTestCase(TestCase):
     def test_superuser_can_assign_owner_to_legacy_task(self):
@@ -496,10 +538,28 @@ class TaskAdminTestCase(TestCase):
             email='admin@example.com',
             password='password',
         )
-        legacy_task = Task.objects.create(title='legacy task')
+        legacy_owner = User.objects.create_user(username='legacy-owner', is_active=False)
+        owner = User.objects.create_user(username='owner', password='password')
+        legacy_task = Task.objects.create(title='legacy task', owner=legacy_owner)
         self.client.force_login(superuser)
 
-        response = self.client.get(reverse('admin:todo_task_change', args=[legacy_task.pk]))
+        response = self.client.post(
+            reverse('admin:todo_task_change', args=[legacy_task.pk]),
+            {
+                'owner': owner.pk,
+                'title': legacy_task.title,
+                'tag': legacy_task.tag,
+                'recurrence': legacy_task.recurrence,
+                'posted_at_0': legacy_task.posted_at.date().isoformat(),
+                'posted_at_1': legacy_task.posted_at.time().strftime('%H:%M:%S'),
+                'due_at_0': '',
+                'due_at_1': '',
+                'notified_at_0': '',
+                'notified_at_1': '',
+                '_save': 'Save',
+            },
+        )
 
-        self.assertEqual(response.status_code, 200)
-        self.assertContains(response, 'id_owner')
+        self.assertEqual(response.status_code, 302)
+        legacy_task.refresh_from_db()
+        self.assertEqual(legacy_task.owner, owner)
