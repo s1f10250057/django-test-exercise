@@ -1,4 +1,5 @@
 from django.contrib.auth.decorators import login_required
+from django.db import transaction
 from django.db.models import F, Q
 from django.http import HttpResponseBadRequest
 from django.shortcuts import get_object_or_404, redirect, render
@@ -13,11 +14,14 @@ def get_user_task_or_404(user, task_id):
 
 
 def mark_task_done(task):
-    was_done = task.status == Task.Status.DONE
-    task.status = Task.Status.DONE
-    task.save(update_fields=['status'])
-    if not was_done:
-        task.create_next_occurrence()
+    with transaction.atomic():
+        locked_task = Task.objects.select_for_update().get(pk=task.pk)
+        if locked_task.status == Task.Status.DONE:
+            return locked_task
+        locked_task.status = Task.Status.DONE
+        locked_task.save(update_fields=['status'])
+        locked_task.create_next_occurrence()
+        return locked_task
 
 
 @login_required
