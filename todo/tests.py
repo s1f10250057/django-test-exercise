@@ -91,6 +91,55 @@ class TaskModelTestCase(TestCase):
             timezone.make_aware(datetime(2024, 2, 29, 10, 0)),
         )
 
+    def test_monthly_recurrence_returns_to_original_day_after_short_month(self):
+        january_due = timezone.make_aware(datetime(2024, 1, 31, 10, 0))
+        january_task = self.create_task(
+            title='month end',
+            recurrence=Task.RECURRENCE_MONTHLY,
+            recurrence_day=31,
+            due_at=january_due,
+        )
+
+        february_task = january_task.create_next_occurrence()
+        march_task = february_task.create_next_occurrence()
+
+        self.assertEqual(
+            february_task.due_at,
+            timezone.make_aware(datetime(2024, 2, 29, 10, 0)),
+        )
+        self.assertEqual(february_task.recurrence_day, 31)
+        self.assertEqual(
+            march_task.due_at,
+            timezone.make_aware(datetime(2024, 3, 31, 10, 0)),
+        )
+        self.assertEqual(march_task.recurrence_day, 31)
+
+    def test_monthly_recurrence_handles_non_leap_year_and_year_boundary(self):
+        december_due = timezone.make_aware(datetime(2024, 12, 31, 10, 0))
+        december_task = self.create_task(
+            title='year end',
+            recurrence=Task.RECURRENCE_MONTHLY,
+            recurrence_day=31,
+            due_at=december_due,
+        )
+
+        january_task = december_task.create_next_occurrence()
+        february_task = january_task.create_next_occurrence()
+        march_task = february_task.create_next_occurrence()
+
+        self.assertEqual(
+            january_task.due_at,
+            timezone.make_aware(datetime(2025, 1, 31, 10, 0)),
+        )
+        self.assertEqual(
+            february_task.due_at,
+            timezone.make_aware(datetime(2025, 2, 28, 10, 0)),
+        )
+        self.assertEqual(
+            march_task.due_at,
+            timezone.make_aware(datetime(2025, 3, 31, 10, 0)),
+        )
+
     def test_create_next_occurrence_inherits_management_fields(self):
         due = timezone.make_aware(datetime(2026, 7, 1, 10, 0))
         task = self.create_task(
@@ -353,6 +402,25 @@ class TodoViewTestCase(TestCase):
         self.assertEqual(task.priority, Task.Priority.HIGH)
         self.assertEqual(task.category, Task.Category.PERSONAL)
         self.assertEqual(task.recurrence, Task.RECURRENCE_MONTHLY)
+
+    def test_update_monthly_due_date_updates_recurrence_day(self):
+        task = self.create_task(
+            title='monthly task',
+            recurrence=Task.RECURRENCE_MONTHLY,
+            recurrence_day=31,
+            due_at=timezone.make_aware(datetime(2026, 7, 31, 10, 0)),
+        )
+        response = self.client.post(
+            '/{}/update'.format(task.pk),
+            self.task_data(
+                recurrence=Task.RECURRENCE_MONTHLY,
+                due_at='2026-08-15T10:00',
+            ),
+        )
+
+        self.assertRedirects(response, '/{}/'.format(task.pk))
+        task.refresh_from_db()
+        self.assertEqual(task.recurrence_day, 15)
 
     def test_update_rejects_other_users_task(self):
         task = Task.objects.create(title='other', owner=self.other_user)
