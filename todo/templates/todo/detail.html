@@ -3,79 +3,99 @@
 <html lang="ja">
 
   <head>
-    <title>To Do Application</title>
+    <title>{{ task.title }} | Task Board</title>
     <meta charset="UTF-8">
-    <meta name="author" content="INIAD">
-    <link rel="stylesheet" href="{% static 'todo/style.css' %}?v=2">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="{% static 'todo/style.css' %}?v=5">
   </head>
 
   <body>
-    <h1>{{ task.title }}</h1>
-    <ul>
-      <li>Posted at: {{ task.posted_at }}</li>
-      {% if task.tag %}
-      <li>Tag: {{ task.tag }}</li>
-      {% endif %}
-      {% if task.due_at %}
-      <li>Due at: {{ task.due_at }}</li>
-      {% endif %}
-      {% if task.recurrence != 'none' %}
-      <li>Repeat: {{ task.get_recurrence_display }}</li>
-      {% endif %}
-      {% if task.completed %}
-      <li>Status: Completed</li>
-      {% else %}
-      <li>Status: Not Completed</li>
-      {% endif %}
-      <li>Description: {{ task.description|default:"No description" }}</li>
-    </ul>
+    <main class="page-shell page-shell-narrow">
+      <header class="page-header detail-header">
+        <div>
+          <p class="eyebrow">TASK DETAIL</p>
+          <h1>{{ task.title }}</h1>
+        </div>
+        <a class="button-secondary" href="{% url 'index' %}">一覧へ戻る</a>
+      </header>
 
-    {% if not task.completed %}
-    <form action="{% url 'complete' task.id %}" method="post">
-      {% csrf_token %}
-      <button type="submit">Complete</button>
-    </form>
-    {% endif %}
-
-    <form action="{% url 'delete' task.id %}" method="post">
-      {% csrf_token %}
-      <button type="submit">Delete</button>
-    </form>
-
-    <section>
-      <h2>Subtasks</h2>
-      <form action="{% url 'add_subtask' task.id %}" method="post">
-        {% csrf_token %}
-        <label for="subtaskTitleInput">Title</label>
-        <input id="subtaskTitleInput" name="title" type="text" placeholder="Input subtask title">
-        <button type="submit">Add Subtask</button>
-      </form>
-
-      <ul>
-        {% for subtask in subtasks %}
-        <li>
-          {% if subtask.completed %}
-          <span>{{ subtask.title }}: Completed</span>
-          {% else %}
-          <span>{{ subtask.title }}: Not Completed</span>
+      <article class="panel detail-panel">
+        <div class="task-card-header">
+          <span class="badge badge-status-{{ task.status }}">{{ task.get_status_display }}</span>
+          <span class="badge badge-priority-{{ task.priority }}">優先度 {{ task.get_priority_display }}</span>
+          <span class="badge badge-category">{{ task.get_category_display }}</span>
+          {% if task.tag %}
+          <span class="badge badge-tag">#{{ task.tag }}</span>
           {% endif %}
-          <form action="{% url 'toggle_subtask' task.id subtask.id %}" method="post">
-            {% csrf_token %}
-            <button type="submit">Toggle</button>
-          </form>
-          <form action="{% url 'delete_subtask' task.id subtask.id %}" method="post">
-            {% csrf_token %}
-            <button type="submit">Delete</button>
-          </form>
-        </li>
-        {% endfor %}
-      </ul>
-    </section>
+          {% if task.recurrence != 'none' %}
+          <span class="badge badge-recurrence">{{ task.recurrence_label }}</span>
+          {% endif %}
+        </div>
+        <dl class="detail-list">
+          <div>
+            <dt>登録日時</dt>
+            <dd>{{ task.posted_at|date:"Y/m/d H:i" }}</dd>
+          </div>
+          <div>
+            <dt>期限</dt>
+            <dd>{% if task.due_at %}{{ task.due_at|date:"Y/m/d H:i" }}{% else %}未設定{% endif %}</dd>
+          </div>
+          <div>
+            <dt>説明</dt>
+            <dd>{{ task.description|default:"未設定" }}</dd>
+          </div>
+        </dl>
 
-    <div>
-      <a href="{% url 'index' %}">Top</a>
-      <a href="{% url 'update' task.id %}">Edit</a>
-    </div>
+        <div class="task-actions detail-actions">
+          <a class="button-secondary" href="{% url 'update' task.id %}">編集</a>
+          {% if task.status != 'done' %}
+          <form action="{% url 'change_status' task.id %}" method="post">
+            {% csrf_token %}
+            <input name="status" type="hidden" value="done">
+            <button type="submit">完了にする</button>
+          </form>
+          {% endif %}
+          <form action="{% url 'delete' task.id %}" method="post">
+            {% csrf_token %}
+            <button class="button-danger" type="submit">削除</button>
+          </form>
+        </div>
+      </article>
+
+      <section class="panel subtask-panel" aria-labelledby="subtask-heading">
+        <h2 id="subtask-heading">サブタスク</h2>
+        <form class="subtask-form" action="{% url 'add_subtask' task.id %}" method="post">
+          {% csrf_token %}
+          <div class="field">
+            <label for="subtaskTitleInput">サブタスク名</label>
+            <input id="subtaskTitleInput" name="title" type="text" placeholder="小さな作業に分けて追加">
+          </div>
+          <button type="submit">追加</button>
+        </form>
+
+        <ul class="subtask-list">
+          {% for subtask in subtasks %}
+          <li{% if subtask.completed %} class="is-completed"{% endif %}>
+            <span>{{ subtask.title }}</span>
+            <div class="task-actions">
+              <form action="{% url 'toggle_subtask' task.id subtask.id %}" method="post">
+                {% csrf_token %}
+                <button class="button-secondary" type="submit">
+                  {% if subtask.completed %}未完了に戻す{% else %}完了{% endif %}
+                </button>
+              </form>
+              <form action="{% url 'delete_subtask' task.id subtask.id %}" method="post">
+                {% csrf_token %}
+                <button class="button-danger" type="submit">削除</button>
+              </form>
+            </div>
+          </li>
+          {% empty %}
+          <li class="subtask-empty">サブタスクはまだありません。</li>
+          {% endfor %}
+        </ul>
+      </section>
+    </main>
   </body>
 
 </html>

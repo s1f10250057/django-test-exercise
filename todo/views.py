@@ -1,49 +1,138 @@
+from datetime import datetime, time, timedelta
+
 from django.contrib.auth.decorators import login_required
-from django.shortcuts import render, redirect
-from django.http import Http404
+from django.db import transaction
+from django.db.models import F, Q
+from django.http import HttpResponseBadRequest
+from django.shortcuts import get_object_or_404, redirect, render
+from django.utils import timezone
 from django.views.decorators.http import require_POST
-from django.utils.timezone import make_aware
-from django.utils.dateparse import parse_datetime
-from todo.models import Task, SubTask
 
-# Create your views here.
-
-
-def parse_due_at(value):
-    if not value:
-        return None
-    return make_aware(parse_datetime(value))
+from todo.forms import TaskForm
+from todo.models import SubTask, Task
 
 
 def get_user_task_or_404(user, task_id):
-    try:
-        return Task.objects.get(pk=task_id, owner=user)
-    except Task.DoesNotExist:
-        raise Http404("Task does not exist")
+    return get_object_or_404(Task, pk=task_id, owner=user)
+
+
+def mark_task_done(task):
+    with transaction.atomic():
+        locked_task = Task.objects.select_for_update().get(pk=task.pk)
+        if locked_task.status == Task.Status.DONE:
+            return locked_task
+        locked_task.status = Task.Status.DONE
+        locked_task.save(update_fields=['status'])
+        locked_task.create_next_occurrence()
+        return locked_task
 
 
 @login_required
 def index(request):
-    if request.method == 'POST':
-        task = Task(title=request.POST['title'],
-                    owner=request.user,
-                    tag=request.POST.get('tag', ''),
-                    recurrence=request.POST.get('recurrence', Task.RECURRENCE_NONE),
-                    description=request.POST.get('description', ''),
-                    due_at=make_aware(parse_datetime(request.POST['due_at'])))
+    form = TaskForm(request.POST or None)
+    if request.method == 'POST' and form.is_valid():
+        task = form.save(commit=False)
+        task.owner = request.user
         task.save()
+        return redirect('index')
+
     tasks = Task.objects.filter(owner=request.user)
-    if request.GET.get('order') == 'due':
-        tasks = tasks.order_by('due_at')
-    elif request.GET.get('order') == 'tag':
+    query = request.GET.get('q', '').strip()
+    status = request.GET.get('status', '')
+    priority = request.GET.get('priority', '')
+    category = request.GET.get('category', '')
+    order = request.GET.get('order', 'post')
+    if order not in ('post', 'due', 'tag'):
+        order = 'post'
+
+    if query:
+        tasks = tasks.filter(
+            Q(title__icontains=query) | Q(tag__icontains=query)
+        )
+    if status in Task.Status.values:
+        tasks = tasks.filter(status=status)
+    if priority in Task.Priority.values:
+        tasks = tasks.filter(priority=priority)
+    if category in Task.Category.values:
+        tasks = tasks.filter(category=category)
+
+    if order == 'due':
+        tasks = tasks.order_by(
+            F('due_at').asc(nulls_last=True),
+            '-posted_at',
+        )
+    elif order == 'tag':
         tasks = tasks.order_by('tag', '-posted_at')
     else:
         tasks = tasks.order_by('-posted_at')
+
+    columns = [
+        {
+            'value': value,
+            'label': label,
+            'tasks': tasks.filter(status=value),
+        }
+        for value, label in Task.Status.choices
+    ]
     context = {
+        'form': form,
         'tasks': tasks,
-        'recurrence_choices': Task.RECURRENCE_CHOICES,
+        'columns': columns,
+        'status_choices': Task.Status.choices,
+        'priority_choices': Task.Priority.choices,
+        'category_choices': Task.Category.choices,
+        'filters': {
+            'q': query,
+            'status': status,
+            'priority': priority,
+            'category': category,
+            'order': order,
+        },
     }
     return render(request, 'todo/index.html', context)
+
+
+@login_required
+def dashboard(request):
+    now = timezone.now()
+    today = timezone.localdate(now)
+    today_start = timezone.make_aware(datetime.combine(today, time.min))
+    tomorrow_start = today_start + timedelta(days=1)
+    upcoming_end = tomorrow_start + timedelta(days=7)
+    tasks = Task.objects.filter(owner=request.user)
+
+    status_counts = {
+        value: tasks.filter(status=value).count()
+        for value, _label in Task.Status.choices
+    }
+    total_count = tasks.count()
+    done_count = status_counts[Task.Status.DONE]
+    completion_rate = round(done_count * 100 / total_count) if total_count else 0
+
+    context = {
+        'today_tasks': tasks.filter(
+            due_at__gte=today_start,
+            due_at__lt=tomorrow_start,
+        ).order_by('due_at'),
+        'overdue_tasks': tasks.exclude(status=Task.Status.DONE).filter(
+            due_at__lt=now,
+        ).order_by('due_at'),
+        'upcoming_tasks': tasks.filter(
+            due_at__gte=tomorrow_start,
+            due_at__lt=upcoming_end,
+        ).order_by('due_at'),
+        'status_summary': [
+            {
+                'value': value,
+                'label': label,
+                'count': status_counts[value],
+            }
+            for value, label in Task.Status.choices
+        ],
+        'total_count': total_count,
+        'completion_rate': completion_rate,
+    }
+    return render(request, 'todo/dashboard.html', context)
 
 
 @login_required
@@ -59,19 +148,17 @@ def detail(request, task_id):
 @login_required
 def update(request, task_id):
     task = get_user_task_or_404(request.user, task_id)
-    if request.method == 'POST':
-        task.title = request.POST['title']
-        task.tag = request.POST.get('tag', '')
-        task.recurrence = request.POST.get('recurrence', Task.RECURRENCE_NONE)
-        task.due_at = parse_due_at(request.POST.get('due_at'))
-        task.description = request.POST.get('description', '')
-        task.save()
-        return redirect('detail', task_id=task.id)
+    form = TaskForm(request.POST or None, instance=task)
+    if request.method == 'POST' and form.is_valid():
+        updated_task = form.save(commit=False)
+        updated_task.owner = request.user
+        updated_task.save()
+        return redirect('detail', task_id=task_id)
     context = {
         'task': task,
-        'recurrence_choices': Task.RECURRENCE_CHOICES,
+        'form': form,
     }
-    return render(request, "todo/edit.html", context)
+    return render(request, 'todo/edit.html', context)
 
 
 @login_required
@@ -86,11 +173,22 @@ def delete(request, task_id):
 @require_POST
 def complete(request, task_id):
     task = get_user_task_or_404(request.user, task_id)
-    was_completed = task.completed
-    task.completed = True
-    task.save()
-    if not was_completed:
-        task.create_next_occurrence()
+    mark_task_done(task)
+    return redirect('index')
+
+
+@login_required
+@require_POST
+def change_status(request, task_id):
+    task = get_user_task_or_404(request.user, task_id)
+    status = request.POST.get('status')
+    if status not in Task.Status.values:
+        return HttpResponseBadRequest('Invalid status')
+    if status == Task.Status.DONE:
+        mark_task_done(task)
+    else:
+        task.status = status
+        task.save(update_fields=['status'])
     return redirect('index')
 
 
@@ -101,29 +199,31 @@ def add_subtask(request, task_id):
     title = request.POST.get('title', '').strip()
     if title:
         SubTask.objects.create(task=task, title=title)
-    return redirect('detail', task_id=task.id)
+    return redirect('detail', task_id=task_id)
 
 
 @login_required
 @require_POST
 def toggle_subtask(request, task_id, subtask_id):
     task = get_user_task_or_404(request.user, task_id)
-    try:
-        subtask = task.subtasks.get(pk=subtask_id)
-    except SubTask.DoesNotExist:
-        raise Http404("SubTask does not exist")
+    subtask = get_object_or_404(
+        SubTask,
+        pk=subtask_id,
+        task=task,
+    )
     subtask.completed = not subtask.completed
-    subtask.save()
-    return redirect('detail', task_id=task.id)
+    subtask.save(update_fields=['completed'])
+    return redirect('detail', task_id=task_id)
 
 
 @login_required
 @require_POST
 def delete_subtask(request, task_id, subtask_id):
     task = get_user_task_or_404(request.user, task_id)
-    try:
-        subtask = task.subtasks.get(pk=subtask_id)
-    except SubTask.DoesNotExist:
-        raise Http404("SubTask does not exist")
+    subtask = get_object_or_404(
+        SubTask,
+        pk=subtask_id,
+        task=task,
+    )
     subtask.delete()
-    return redirect('detail', task_id=task.id)
+    return redirect('detail', task_id=task_id)

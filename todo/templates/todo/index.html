@@ -3,93 +3,190 @@
 <html lang="ja">
 
   <head>
-    <title>To Do Application</title>
+    <title>Task Board</title>
     <meta charset="UTF-8">
     <meta name="author" content="INIAD">
-    <link rel="stylesheet" href="{% static 'todo/style.css' %}?v=2">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="{% static 'todo/style.css' %}?v=5">
   </head>
 
   <body>
-    <main>
+    <main class="page-shell">
       <header class="page-header">
-        <h1>Sample To Do Application</h1>
-        <p>You can submit tasks from the following form.</p>
-        <p>Logged in as: {{ request.user.username }}</p>
-        <form action="{% url 'logout' %}" method="post">
-          {% csrf_token %}
-          <button type="submit">Logout</button>
-        </form>
+        <div>
+          <p class="eyebrow">TASK MANAGEMENT</p>
+          <h1>Task Board</h1>
+          <p>優先度やカテゴリを設定し、進み具合をひと目で管理できます。</p>
+        </div>
+        <div class="user-actions">
+          <span>{{ request.user.username }}</span>
+          <a class="button-secondary" href="{% url 'dashboard' %}">ダッシュボード</a>
+          <form action="{% url 'logout' %}" method="post">
+            {% csrf_token %}
+            <button class="button-secondary" type="submit">ログアウト</button>
+          </form>
+        </div>
       </header>
 
-      <form class="task-form" action="{% url 'index' %}" method="post">
-        {% csrf_token %}
-        <div>
-          <label for="titleInput">Title</label>
-          <input id="titleInput" name="title" type="text" placeholder="Input title">
-        </div>
-        <div>
-          <label for="tagInput">Tag</label>
-          <input id="tagInput" name="tag" type="text" placeholder="Input tag">
-          <label for="descInput">Description</label>
-          <textarea id="descInput" name="description" placeholder="Input description"></textarea>
-        </div>
-        <div>
-          <label for="dueInput">Due at</label>
-          <input id="dueInput" name="due_at" type="datetime-local">
-        </div>
-        <div>
-          <label for="recurrenceInput">Repeat</label>
-          <select id="recurrenceInput" name="recurrence">
-            {% for value, label in recurrence_choices %}
-            <option value="{{ value }}">{{ label }}</option>
-            {% endfor %}
-          </select>
-        </div>
-        <button type="submit">Submit</button>
-      </form>
-
-      <nav class="sort-links">
-        <a href="{% url 'index' %}?order=due">Sort by Due Date</a>
-        <span>|</span>
-        <a href="{% url 'index' %}?order=post">Sort by Posted Date</a>
-        <span>|</span>
-        <a href="{% url 'index' %}?order=tag">Sort by Tag</a>
-      </nav>
-
-      <section class="task-list">
-        {% for task in tasks %}
-        <article class="text">
-          <h2><a href="{% url 'detail' task.id %}">{{ task.title }}</a></h2>
-          <ul>
-            <li>Posted at: {{ task.posted_at }}</li>
-            {% if task.tag %}
-            <li>Tag: {{ task.tag }}</li>
-            {% endif %}
-            {% if task.due_at %}
-            <li>Due at: {{ task.due_at }}</li>
-            {% endif %}
-            {% if task.recurrence != 'none' %}
-            <li>Repeat: {{ task.get_recurrence_display }}</li>
-            {% endif %}
-            {% if task.completed %}
-            <li>Status: Completed</li>
-            {% else %}
-            <li>Status: Not Completed</li>
-            {% endif %}
-          </ul>
-          <div class="task-actions">
-            {% if not task.completed %}
-            <form action="{% url 'complete' task.id %}" method="post">
-              {% csrf_token %}
-              <button type="submit">Complete</button>
-            </form>
-            {% endif %}
-            <form action="{% url 'delete' task.id %}" method="post">
-              {% csrf_token %}
-              <button class="button-danger" type="submit">Delete</button>
-            </form>
+      <section class="panel" aria-labelledby="create-heading">
+        <h2 id="create-heading">新しいタスク</h2>
+        <form class="task-form" action="{% url 'index' %}" method="post">
+          {% csrf_token %}
+          <div class="field field-title">
+            <label for="{{ form.title.id_for_label }}">{{ form.title.label }}</label>
+            {{ form.title }}
+            {{ form.title.errors }}
           </div>
-        </article>
+          <div class="field">
+            <label for="{{ form.tag.id_for_label }}">{{ form.tag.label }}</label>
+            {{ form.tag }}
+            {{ form.tag.errors }}
+          </div>
+          <div class="field">
+            <label for="{{ form.description.id_for_label }}">{{ form.description.label }}</label>
+            {{ form.description }}
+            {{ form.description.errors }}
+          </div>
+          <div class="field">
+            <label for="{{ form.due_at.id_for_label }}">{{ form.due_at.label }}</label>
+            {{ form.due_at }}
+            {{ form.due_at.errors }}
+          </div>
+          <div class="field">
+            <label for="{{ form.priority.id_for_label }}">{{ form.priority.label }}</label>
+            {{ form.priority }}
+          </div>
+          <div class="field">
+            <label for="{{ form.category.id_for_label }}">{{ form.category.label }}</label>
+            {{ form.category }}
+          </div>
+          <div class="field">
+            <label for="{{ form.status.id_for_label }}">{{ form.status.label }}</label>
+            {{ form.status }}
+          </div>
+          <div class="field">
+            <label for="{{ form.recurrence.id_for_label }}">{{ form.recurrence.label }}</label>
+            {{ form.recurrence }}
+          </div>
+          <button type="submit">追加</button>
+        </form>
+      </section>
+
+      <section class="panel filter-panel" aria-labelledby="filter-heading">
+        <h2 id="filter-heading">検索・絞り込み</h2>
+        <form class="filter-form" action="{% url 'index' %}" method="get">
+          <div class="field field-search">
+            <label for="searchInput">キーワード</label>
+            <input id="searchInput" name="q" type="search" value="{{ filters.q }}" placeholder="タイトル・タグを検索">
+          </div>
+          <div class="field">
+            <label for="statusFilter">ステータス</label>
+            <select id="statusFilter" name="status">
+              <option value="">すべて</option>
+              {% for value, label in status_choices %}
+              <option value="{{ value }}"{% if filters.status == value %} selected{% endif %}>{{ label }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="field">
+            <label for="priorityFilter">優先度</label>
+            <select id="priorityFilter" name="priority">
+              <option value="">すべて</option>
+              {% for value, label in priority_choices %}
+              <option value="{{ value }}"{% if filters.priority == value %} selected{% endif %}>{{ label }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="field">
+            <label for="categoryFilter">カテゴリ</label>
+            <select id="categoryFilter" name="category">
+              <option value="">すべて</option>
+              {% for value, label in category_choices %}
+              <option value="{{ value }}"{% if filters.category == value %} selected{% endif %}>{{ label }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="field">
+            <label for="orderFilter">並び順</label>
+            <select id="orderFilter" name="order">
+              <option value="post"{% if filters.order == 'post' %} selected{% endif %}>登録日が新しい順</option>
+              <option value="due"{% if filters.order == 'due' %} selected{% endif %}>期限が近い順</option>
+              <option value="tag"{% if filters.order == 'tag' %} selected{% endif %}>タグ順</option>
+            </select>
+          </div>
+          <div class="filter-actions">
+            <button type="submit">適用</button>
+            <a class="button-secondary" href="{% url 'index' %}">リセット</a>
+          </div>
+        </form>
+      </section>
+
+      <section class="board" aria-label="タスクボード">
+        {% for column in columns %}
+        <section class="board-column board-column-{{ column.value }}">
+          <header class="column-header">
+            <h2>{{ column.label }}</h2>
+          </header>
+          <div class="task-list">
+            {% for task in column.tasks %}
+            <article class="task-card priority-{{ task.priority }}">
+              <div class="task-card-header">
+                <span class="badge badge-priority-{{ task.priority }}">優先度 {{ task.get_priority_display }}</span>
+                <span class="badge badge-category">{{ task.get_category_display }}</span>
+                {% if task.tag %}
+                <span class="badge badge-tag">#{{ task.tag }}</span>
+                {% endif %}
+                {% if task.recurrence != 'none' %}
+                <span class="badge badge-recurrence">{{ task.recurrence_label }}</span>
+                {% endif %}
+              </div>
+              <h3><a href="{% url 'detail' task.id %}">{{ task.title }}</a></h3>
+              <dl class="task-meta">
+                <div>
+                  <dt>登録</dt>
+                  <dd>{{ task.posted_at|date:"Y/m/d H:i" }}</dd>
+                </div>
+                <div>
+                  <dt>期限</dt>
+                  <dd>{% if task.due_at %}{{ task.due_at|date:"Y/m/d H:i" }}{% else %}未設定{% endif %}</dd>
+                </div>
+              </dl>
+              <div class="task-actions">
+                {% if task.status == 'todo' %}
+                <form action="{% url 'change_status' task.id %}" method="post">
+                  {% csrf_token %}
+                  <input name="status" type="hidden" value="doing">
+                  <button type="submit">開始</button>
+                </form>
+                {% elif task.status == 'doing' %}
+                <form action="{% url 'change_status' task.id %}" method="post">
+                  {% csrf_token %}
+                  <input name="status" type="hidden" value="done">
+                  <button type="submit">完了</button>
+                </form>
+                <form action="{% url 'change_status' task.id %}" method="post">
+                  {% csrf_token %}
+                  <input name="status" type="hidden" value="todo">
+                  <button class="button-secondary" type="submit">戻す</button>
+                </form>
+                {% else %}
+                <form action="{% url 'change_status' task.id %}" method="post">
+                  {% csrf_token %}
+                  <input name="status" type="hidden" value="todo">
+                  <button class="button-secondary" type="submit">再開</button>
+                </form>
+                {% endif %}
+                <form action="{% url 'delete' task.id %}" method="post">
+                  {% csrf_token %}
+                  <button class="button-danger" type="submit">削除</button>
+                </form>
+              </div>
+            </article>
+            {% empty %}
+            <p class="empty-state">該当するタスクはありません。</p>
+            {% endfor %}
+          </div>
+        </section>
         {% endfor %}
       </section>
     </main>
