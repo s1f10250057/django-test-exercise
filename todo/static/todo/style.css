@@ -414,6 +414,86 @@ button:hover {
   font-size: 13px;
 }
 
+.dashboard-summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.summary-item {
+  min-width: 0;
+  padding: 18px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-top: 4px solid #8793a8;
+  border-radius: 6px;
+}
+
+.summary-item-doing {
+  border-top-color: #5d72c7;
+}
+
+.summary-item-done {
+  border-top-color: #3d8a63;
+}
+
+.summary-item-rate {
+  border-top-color: var(--primary);
+}
+
+.summary-item span,
+.summary-item small {
+  display: block;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.summary-item strong {
+  display: block;
+  margin: 4px 0;
+  font-size: 28px;
+}
+
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  align-items: start;
+}
+
+.dashboard-section {
+  min-width: 0;
+  padding: 18px;
+  background: #e9eef7;
+  border-radius: 8px;
+}
+
+.dashboard-section-overdue {
+  background: #f7e9eb;
+}
+
+.dashboard-task-list {
+  display: grid;
+  gap: 10px;
+}
+
+.dashboard-task {
+  min-width: 0;
+  padding: 14px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+
+.dashboard-task h3 {
+  margin: 10px 0 4px;
+}
+
+.dashboard-task p {
+  font-size: 13px;
+}
+
 @media (max-width: 1100px) {
   .task-form,
   .filter-form {
@@ -440,6 +520,14 @@ button:hover {
   .board {
     grid-template-columns: 1fr;
   }
+
+  .dashboard-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .dashboard-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 560px) {
@@ -452,5 +540,9 @@ button:hover {
   .task-form button,
   .filter-actions {
     grid-column: auto;
+  }
+
+  .dashboard-summary {
+    grid-template-columns: 1fr;
   }
 }

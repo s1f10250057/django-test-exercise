@@ -17,6 +17,14 @@ class TaskForm(forms.ModelForm):
         task = super().save(commit=False)
         if 'due_at' in self.changed_data:
             task.notified_at = None
+        if task.recurrence != Task.RECURRENCE_MONTHLY or task.due_at is None:
+            task.recurrence_day = None
+        elif (
+            task.recurrence_day is None
+            or 'due_at' in self.changed_data
+            or 'recurrence' in self.changed_data
+        ):
+            task.recurrence_day = task.due_at.day
         if commit:
             task.save()
             self.save_m2m()

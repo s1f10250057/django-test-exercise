@@ -1,0 +1,14 @@
+<div class="dashboard-task-list">
+  {% for task in tasks %}
+  <article class="dashboard-task priority-{{ task.priority }}">
+    <div>
+      <span class="badge badge-status-{{ task.status }}">{{ task.get_status_display }}</span>
+      <span class="badge badge-priority-{{ task.priority }}">優先度 {{ task.get_priority_display }}</span>
+    </div>
+    <h3><a href="{% url 'detail' task.id %}">{{ task.title }}</a></h3>
+    <p>{% if task.due_at %}{{ task.due_at|date:"Y/m/d H:i" }}{% endif %}</p>
+  </article>
+  {% empty %}
+  <p class="empty-state">{{ empty_message }}</p>
+  {% endfor %}
+</div>
