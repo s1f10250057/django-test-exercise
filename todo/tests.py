@@ -1,14 +1,24 @@
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
+from threading import Barrier
 from unittest.mock import patch
 
 from django.contrib.auth.models import User
 from django.core import mail
 from django.core.management import call_command
-from django.test import Client, TestCase, override_settings
+from django.db import IntegrityError, close_old_connections
+from django.test import (
+    Client,
+    TestCase,
+    TransactionTestCase,
+    override_settings,
+    skipUnlessDBFeature,
+)
 from django.urls import reverse
 from django.utils import timezone
 
 from todo.models import SubTask, Task
+from todo.views import mark_task_done
 
 
 class TaskModelTestCase(TestCase):
@@ -126,6 +136,21 @@ class TaskModelTestCase(TestCase):
         second = task.create_next_occurrence()
         self.assertEqual(first, second)
         self.assertEqual(Task.objects.exclude(pk=task.pk).count(), 1)
+
+    def test_database_rejects_second_next_occurrence_for_same_source(self):
+        task = self.create_task(
+            title='task1',
+            recurrence=Task.RECURRENCE_DAILY,
+            due_at=timezone.make_aware(datetime(2026, 7, 1, 10, 0)),
+        )
+        task.create_next_occurrence()
+
+        with self.assertRaises(IntegrityError):
+            Task.objects.create(
+                owner=self.owner,
+                title='duplicate',
+                recurrence_source=task,
+            )
 
     def test_is_overdue_future(self):
         due = timezone.make_aware(datetime(2026, 7, 31, 23, 59))
@@ -466,6 +491,25 @@ class TodoViewTestCase(TestCase):
             timezone.make_aware(datetime(2026, 7, 2, 10, 0)),
         )
 
+    def test_complete_rolls_back_when_next_occurrence_creation_fails(self):
+        task = self.create_task(
+            title='task1',
+            recurrence=Task.RECURRENCE_DAILY,
+            due_at=timezone.make_aware(datetime(2026, 7, 1, 10, 0)),
+        )
+
+        with patch.object(
+            Task,
+            'create_next_occurrence',
+            side_effect=RuntimeError('creation failed'),
+        ):
+            with self.assertRaises(RuntimeError):
+                mark_task_done(task)
+
+        task.refresh_from_db()
+        self.assertEqual(task.status, Task.Status.TODO)
+        self.assertFalse(Task.objects.filter(recurrence_source=task).exists())
+
     def test_complete_get_not_allowed(self):
         task = self.create_task(title='task1')
         response = self.client.get('/{}/complete/'.format(task.pk))
@@ -741,3 +785,32 @@ class TaskAdminTestCase(TestCase):
         self.assertEqual(response.status_code, 302)
         legacy_task.refresh_from_db()
         self.assertEqual(legacy_task.owner, owner)
+
+
+@skipUnlessDBFeature('has_select_for_update')
+class RecurringTaskConcurrencyTestCase(TransactionTestCase):
+    def test_concurrent_completion_creates_one_next_occurrence(self):
+        owner = User.objects.create_user(username='owner', password='password')
+        task = Task.objects.create(
+            owner=owner,
+            title='concurrent task',
+            recurrence=Task.RECURRENCE_DAILY,
+            due_at=timezone.make_aware(datetime(2026, 7, 1, 10, 0)),
+        )
+        barrier = Barrier(2)
+
+        def complete_task():
+            close_old_connections()
+            local_task = Task.objects.get(pk=task.pk)
+            barrier.wait()
+            mark_task_done(local_task)
+            close_old_connections()
+
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            futures = [executor.submit(complete_task) for _ in range(2)]
+            for future in futures:
+                future.result()
+
+        task.refresh_from_db()
+        self.assertEqual(task.status, Task.Status.DONE)
+        self.assertEqual(Task.objects.filter(recurrence_source=task).count(), 1)

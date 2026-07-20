@@ -9,10 +9,7 @@ from todo.models import Task
 
 class TaskOwnerMigrationTestCase(TransactionTestCase):
     migrate_from = [('todo', '0005_task_owner')]
-    migrate_to = [
-        ('todo', '0006_backfill_task_owner'),
-        ('todo', '0006_task_management_fields'),
-    ]
+    migrate_to = [('todo', '0008_task_recurrence_source')]
 
     def setUp(self):
         super().setUp()
