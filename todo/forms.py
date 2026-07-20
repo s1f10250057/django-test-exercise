@@ -15,6 +15,8 @@ class TaskForm(forms.ModelForm):
 
     def save(self, commit=True):
         task = super().save(commit=False)
+        if 'due_at' in self.changed_data:
+            task.notified_at = None
         if task.recurrence != Task.RECURRENCE_MONTHLY or task.due_at is None:
             task.recurrence_day = None
         elif (

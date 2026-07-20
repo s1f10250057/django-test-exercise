@@ -491,6 +491,69 @@ class TodoViewTestCase(TestCase):
         self.assertEqual(task.category, Task.Category.PERSONAL)
         self.assertEqual(task.recurrence, Task.RECURRENCE_MONTHLY)
 
+    def test_update_due_date_resets_notification_and_allows_resend(self):
+        self.user.email = 'alice@example.com'
+        self.user.save(update_fields=['email'])
+        original_due = timezone.now() + timezone.timedelta(hours=6)
+        task = self.create_task(
+            title='task1',
+            due_at=original_due,
+            notified_at=timezone.now(),
+        )
+        new_due = timezone.now() + timezone.timedelta(hours=12)
+        response = self.client.post(
+            '/{}/update'.format(task.pk),
+            self.task_data(due_at=new_due.strftime('%Y-%m-%dT%H:%M')),
+        )
+
+        self.assertRedirects(response, '/{}/'.format(task.pk))
+        task.refresh_from_db()
+        self.assertIsNone(task.notified_at)
+
+        with self.settings(
+            EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend'
+        ):
+            call_command('notify_due_tasks')
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertIn('Test Task', mail.outbox[0].body)
+
+    def test_update_without_due_date_change_keeps_notification(self):
+        due = timezone.now().replace(second=0, microsecond=0)
+        due += timezone.timedelta(hours=12)
+        notified_at = timezone.now()
+        task = self.create_task(
+            title='task1',
+            due_at=due,
+            notified_at=notified_at,
+        )
+        response = self.client.post(
+            '/{}/update'.format(task.pk),
+            self.task_data(
+                title='renamed',
+                due_at=timezone.localtime(due).strftime('%Y-%m-%dT%H:%M'),
+            ),
+        )
+
+        self.assertRedirects(response, '/{}/'.format(task.pk))
+        task.refresh_from_db()
+        self.assertEqual(task.notified_at, notified_at)
+
+    def test_update_removing_due_date_clears_notification(self):
+        task = self.create_task(
+            title='task1',
+            due_at=timezone.now() + timezone.timedelta(hours=12),
+            notified_at=timezone.now(),
+        )
+        response = self.client.post(
+            '/{}/update'.format(task.pk),
+            self.task_data(due_at=''),
+        )
+
+        self.assertRedirects(response, '/{}/'.format(task.pk))
+        task.refresh_from_db()
+        self.assertIsNone(task.due_at)
+        self.assertIsNone(task.notified_at)
+
     def test_update_monthly_due_date_updates_recurrence_day(self):
         task = self.create_task(
             title='monthly task',
