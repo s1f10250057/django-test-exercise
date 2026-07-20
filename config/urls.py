@@ -23,6 +23,7 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     path('login/', auth_views.LoginView.as_view(template_name='registration/login.html'), name='login'),
     path('logout/', auth_views.LogoutView.as_view(), name='logout'),
+    path('dashboard/', todo_views.dashboard, name='dashboard'),
     path('', todo_views.index, name='index'),
     path('<int:task_id>/complete/', todo_views.complete, name='complete'),
     path('<int:task_id>/status/', todo_views.change_status, name='change_status'),
