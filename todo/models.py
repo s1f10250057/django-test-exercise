@@ -61,6 +61,11 @@ class Task(models.Model):
         choices=RECURRENCE_CHOICES,
         default=RECURRENCE_NONE,
     )
+    recurrence_day = models.PositiveSmallIntegerField(
+        null=True,
+        blank=True,
+        editable=False,
+    )
     posted_at = models.DateTimeField(default=timezone.now)
     due_at = models.DateTimeField(null=True, blank=True)
     notified_at = models.DateTimeField(null=True, blank=True)
@@ -101,10 +106,8 @@ class Task(models.Model):
             if month == 13:
                 year += 1
                 month = 1
-            day = min(
-                self.due_at.day,
-                calendar.monthrange(year, month)[1],
-            )
+            recurrence_day = self.recurrence_day or self.due_at.day
+            day = min(recurrence_day, calendar.monthrange(year, month)[1])
             return self.due_at.replace(year=year, month=month, day=day)
         return None
 
@@ -121,6 +124,11 @@ class Task(models.Model):
                 'priority': self.priority,
                 'category': self.category,
                 'recurrence': self.recurrence,
+                'recurrence_day': (
+                    self.recurrence_day or self.due_at.day
+                    if self.recurrence == self.RECURRENCE_MONTHLY
+                    else None
+                ),
                 'due_at': due_at,
             },
         )
