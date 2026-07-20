@@ -69,6 +69,14 @@ class Task(models.Model):
     posted_at = models.DateTimeField(default=timezone.now)
     due_at = models.DateTimeField(null=True, blank=True)
     notified_at = models.DateTimeField(null=True, blank=True)
+    recurrence_source = models.OneToOneField(
+        'self',
+        null=True,
+        blank=True,
+        editable=False,
+        on_delete=models.SET_NULL,
+        related_name='next_occurrence',
+    )
 
     def is_overdue(self, dt):
         if self.due_at is None:
@@ -108,19 +116,20 @@ class Task(models.Model):
         if due_at is None:
             return None
         next_task, _ = Task.objects.get_or_create(
-            owner=self.owner,
-            title=self.title,
-            recurrence=self.recurrence,
-            due_at=due_at,
+            recurrence_source=self,
             defaults={
+                'owner': self.owner,
+                'title': self.title,
                 'tag': self.tag,
                 'priority': self.priority,
                 'category': self.category,
+                'recurrence': self.recurrence,
                 'recurrence_day': (
                     self.recurrence_day or self.due_at.day
                     if self.recurrence == self.RECURRENCE_MONTHLY
                     else None
                 ),
+                'due_at': due_at,
             },
         )
         return next_task

@@ -12,7 +12,7 @@ from todo.models import Task
 
 class TaskOwnerMigrationTestCase(TransactionTestCase):
     migrate_from = [('todo', '0005_task_owner')]
-    migrate_to = [('todo', '0008_task_recurrence_day')]
+    migrate_to = [('todo', '0008_task_recurrence_source')]
 
     def setUp(self):
         super().setUp()
@@ -61,8 +61,8 @@ class TaskOwnerMigrationTestCase(TransactionTestCase):
 
 
 class MonthlyRecurrenceMigrationTestCase(TransactionTestCase):
-    migrate_from = [('todo', '0007_merge_20260716_1543')]
-    migrate_to = [('todo', '0008_task_recurrence_day')]
+    migrate_from = [('todo', '0008_task_recurrence_source')]
+    migrate_to = [('todo', '0009_task_recurrence_day')]
 
     def setUp(self):
         super().setUp()

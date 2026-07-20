@@ -15,8 +15,8 @@ def backfill_recurrence_day(apps, schema_editor):
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('todo', '0007_merge_20260716_1543'),
-    ]
+    ('todo', '0008_task_recurrence_source'),
+]
 
     operations = [
         migrations.AddField(
