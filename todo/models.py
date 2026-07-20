@@ -41,6 +41,7 @@ class Task(models.Model):
     )
     title = models.CharField(max_length=100)
     tag = models.CharField(max_length=50, blank=True)
+    description = models.TextField(null=True, blank=True)
     status = models.CharField(
         max_length=10,
         choices=Status.choices,

@@ -782,6 +782,20 @@ class TodoViewTestCase(TestCase):
         self.assertEqual(response.status_code, 404)
         self.assertTrue(SubTask.objects.filter(pk=subtask.pk).exists())
 
+    def test_create_task_with_description(self):
+        task = self.create_task(
+            title='Task with Desc',
+            description='This is a memo.',
+        )
+        saved_task = Task.objects.get(pk=task.pk)
+        self.assertEqual(saved_task.description, 'This is a memo.')
+
+    def test_create_task_without_description(self):
+        task = self.create_task(title='No Desc Task')
+        saved_task = Task.objects.get(pk=task.pk)
+        self.assertIn(saved_task.description, [None, ''])
+
+
 
 @override_settings(
     EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend'

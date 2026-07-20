@@ -35,6 +35,7 @@ class TaskForm(forms.ModelForm):
         fields = (
             'title',
             'tag',
+            'description',
             'due_at',
             'priority',
             'category',
@@ -44,6 +45,7 @@ class TaskForm(forms.ModelForm):
         labels = {
             'title': 'タイトル',
             'tag': 'タグ',
+            'description': '説明',
             'due_at': '期限',
             'priority': '優先度',
             'category': 'カテゴリ',
@@ -53,6 +55,12 @@ class TaskForm(forms.ModelForm):
         widgets = {
             'title': forms.TextInput(attrs={'placeholder': 'タスク名を入力'}),
             'tag': forms.TextInput(attrs={'placeholder': '例: Django'}),
+            'description': forms.Textarea(
+                attrs={
+                    'placeholder': 'メモや補足を入力',
+                    'rows': 3,
+                }
+            ),
             'due_at': forms.DateTimeInput(
                 attrs={'type': 'datetime-local'},
                 format='%Y-%m-%dT%H:%M',

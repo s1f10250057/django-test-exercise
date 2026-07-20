@@ -40,6 +40,10 @@
             <dt>期限</dt>
             <dd>{% if task.due_at %}{{ task.due_at|date:"Y/m/d H:i" }}{% else %}未設定{% endif %}</dd>
           </div>
+          <div>
+            <dt>説明</dt>
+            <dd>{{ task.description|default:"未設定" }}</dd>
+          </div>
         </dl>
 
         <div class="task-actions detail-actions">

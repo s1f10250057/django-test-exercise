@@ -43,6 +43,11 @@
             {{ form.tag.errors }}
           </div>
           <div class="field">
+            <label for="{{ form.description.id_for_label }}">{{ form.description.label }}</label>
+            {{ form.description }}
+            {{ form.description.errors }}
+          </div>
+          <div class="field">
             <label for="{{ form.due_at.id_for_label }}">{{ form.due_at.label }}</label>
             {{ form.due_at }}
             {{ form.due_at.errors }}
