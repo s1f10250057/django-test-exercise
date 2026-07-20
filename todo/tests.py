@@ -330,6 +330,68 @@ class TodoViewTestCase(TestCase):
         )
         self.assertEqual(list(response.context['tasks']), [expected])
 
+    def test_dashboard_requires_login(self):
+        self.client.logout()
+
+        response = self.client.get('/dashboard/')
+
+        self.assertRedirects(
+            response,
+            '/login/?next=/dashboard/',
+            fetch_redirect_response=False,
+        )
+
+    def test_dashboard_groups_due_tasks_and_excludes_other_users(self):
+        now = timezone.make_aware(datetime(2026, 7, 17, 12, 0))
+        today = self.create_task(
+            title='today task',
+            due_at=timezone.make_aware(datetime(2026, 7, 17, 18, 0)),
+        )
+        overdue = self.create_task(
+            title='overdue task',
+            due_at=timezone.make_aware(datetime(2026, 7, 16, 18, 0)),
+        )
+        upcoming = self.create_task(
+            title='upcoming task',
+            due_at=timezone.make_aware(datetime(2026, 7, 20, 18, 0)),
+        )
+        self.create_task(title='without due date')
+        self.create_task(
+            title='completed overdue',
+            status=Task.Status.DONE,
+            due_at=timezone.make_aware(datetime(2026, 7, 15, 18, 0)),
+        )
+        Task.objects.create(
+            owner=self.other_user,
+            title='other user task',
+            due_at=timezone.make_aware(datetime(2026, 7, 17, 18, 0)),
+        )
+
+        with patch('todo.views.timezone.now', return_value=now):
+            response = self.client.get('/dashboard/')
+
+        self.assertEqual(list(response.context['today_tasks']), [today])
+        self.assertEqual(list(response.context['overdue_tasks']), [overdue])
+        self.assertEqual(list(response.context['upcoming_tasks']), [upcoming])
+        self.assertNotContains(response, 'other user task')
+        self.assertNotContains(response, 'completed overdue')
+
+    def test_dashboard_status_counts_and_completion_rate(self):
+        self.create_task(title='todo', status=Task.Status.TODO)
+        self.create_task(title='doing', status=Task.Status.DOING)
+        self.create_task(title='done one', status=Task.Status.DONE)
+        self.create_task(title='done two', status=Task.Status.DONE)
+
+        response = self.client.get('/dashboard/')
+
+        counts = {
+            item['value']: item['count']
+            for item in response.context['status_summary']
+        }
+        self.assertEqual(counts, {'todo': 1, 'doing': 1, 'done': 2})
+        self.assertEqual(response.context['total_count'], 4)
+        self.assertEqual(response.context['completion_rate'], 50)
+
     def test_detail_includes_tag_recurrence_and_subtasks(self):
         task = self.create_task(
             title='task1',
