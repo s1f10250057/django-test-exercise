@@ -1,7 +1,11 @@
+from datetime import datetime, time, timedelta
+
 from django.contrib.auth.decorators import login_required
+from django.db import transaction
 from django.db.models import F, Q
 from django.http import HttpResponseBadRequest
 from django.shortcuts import get_object_or_404, redirect, render
+from django.utils import timezone
 from django.views.decorators.http import require_POST
 
 from todo.forms import TaskForm
@@ -13,11 +17,14 @@ def get_user_task_or_404(user, task_id):
 
 
 def mark_task_done(task):
-    was_done = task.status == Task.Status.DONE
-    task.status = Task.Status.DONE
-    task.save(update_fields=['status'])
-    if not was_done:
-        task.create_next_occurrence()
+    with transaction.atomic():
+        locked_task = Task.objects.select_for_update().get(pk=task.pk)
+        if locked_task.status == Task.Status.DONE:
+            return locked_task
+        locked_task.status = Task.Status.DONE
+        locked_task.save(update_fields=['status'])
+        locked_task.create_next_occurrence()
+        return locked_task
 
 
 @login_required
@@ -83,6 +90,49 @@ def index(request):
         },
     }
     return render(request, 'todo/index.html', context)
+
+
+@login_required
+def dashboard(request):
+    now = timezone.now()
+    today = timezone.localdate(now)
+    today_start = timezone.make_aware(datetime.combine(today, time.min))
+    tomorrow_start = today_start + timedelta(days=1)
+    upcoming_end = tomorrow_start + timedelta(days=7)
+    tasks = Task.objects.filter(owner=request.user)
+
+    status_counts = {
+        value: tasks.filter(status=value).count()
+        for value, _label in Task.Status.choices
+    }
+    total_count = tasks.count()
+    done_count = status_counts[Task.Status.DONE]
+    completion_rate = round(done_count * 100 / total_count) if total_count else 0
+
+    context = {
+        'today_tasks': tasks.filter(
+            due_at__gte=today_start,
+            due_at__lt=tomorrow_start,
+        ).order_by('due_at'),
+        'overdue_tasks': tasks.exclude(status=Task.Status.DONE).filter(
+            due_at__lt=now,
+        ).order_by('due_at'),
+        'upcoming_tasks': tasks.filter(
+            due_at__gte=tomorrow_start,
+            due_at__lt=upcoming_end,
+        ).order_by('due_at'),
+        'status_summary': [
+            {
+                'value': value,
+                'label': label,
+                'count': status_counts[value],
+            }
+            for value, label in Task.Status.choices
+        ],
+        'total_count': total_count,
+        'completion_rate': completion_rate,
+    }
+    return render(request, 'todo/dashboard.html', context)
 
 
 @login_required

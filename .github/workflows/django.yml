@@ -32,3 +32,11 @@ jobs:
     - name: Run Tests
       run: |
         python manage.py test
+    - name: Check production deployment settings
+      env:
+        DATABASE_URL: "sqlite:///:memory:"
+        DJANGO_SETTINGS_MODULE: config.production
+        RENDER_EXTERNAL_HOSTNAME: example.com
+        SECRET_KEY: ci-deployment-check-secret-key-with-sufficient-length
+      run: |
+        python manage.py check --deploy --fail-level WARNING

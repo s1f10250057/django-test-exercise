@@ -61,9 +61,22 @@ class Task(models.Model):
         choices=RECURRENCE_CHOICES,
         default=RECURRENCE_NONE,
     )
+    recurrence_day = models.PositiveSmallIntegerField(
+        null=True,
+        blank=True,
+        editable=False,
+    )
     posted_at = models.DateTimeField(default=timezone.now)
     due_at = models.DateTimeField(null=True, blank=True)
     notified_at = models.DateTimeField(null=True, blank=True)
+    recurrence_source = models.OneToOneField(
+        'self',
+        null=True,
+        blank=True,
+        editable=False,
+        on_delete=models.SET_NULL,
+        related_name='next_occurrence',
+    )
 
     def is_overdue(self, dt):
         if self.due_at is None:
@@ -93,10 +106,8 @@ class Task(models.Model):
             if month == 13:
                 year += 1
                 month = 1
-            day = min(
-                self.due_at.day,
-                calendar.monthrange(year, month)[1],
-            )
+            recurrence_day = self.recurrence_day or self.due_at.day
+            day = min(recurrence_day, calendar.monthrange(year, month)[1])
             return self.due_at.replace(year=year, month=month, day=day)
         return None
 
@@ -105,14 +116,20 @@ class Task(models.Model):
         if due_at is None:
             return None
         next_task, _ = Task.objects.get_or_create(
-            owner=self.owner,
-            title=self.title,
-            recurrence=self.recurrence,
-            due_at=due_at,
+            recurrence_source=self,
             defaults={
+                'owner': self.owner,
+                'title': self.title,
                 'tag': self.tag,
                 'priority': self.priority,
                 'category': self.category,
+                'recurrence': self.recurrence,
+                'recurrence_day': (
+                    self.recurrence_day or self.due_at.day
+                    if self.recurrence == self.RECURRENCE_MONTHLY
+                    else None
+                ),
+                'due_at': due_at,
             },
         )
         return next_task

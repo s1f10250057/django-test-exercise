@@ -20,6 +20,7 @@
         </div>
         <div class="user-actions">
           <span>{{ request.user.username }}</span>
+          <a class="button-secondary" href="{% url 'dashboard' %}">ダッシュボード</a>
           <form action="{% url 'logout' %}" method="post">
             {% csrf_token %}
             <button class="button-secondary" type="submit">ログアウト</button>

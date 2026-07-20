@@ -1,13 +1,24 @@
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
+from threading import Barrier
+from unittest.mock import patch
 
 from django.contrib.auth.models import User
 from django.core import mail
 from django.core.management import call_command
-from django.test import Client, TestCase, override_settings
+from django.db import IntegrityError, close_old_connections
+from django.test import (
+    Client,
+    TestCase,
+    TransactionTestCase,
+    override_settings,
+    skipUnlessDBFeature,
+)
 from django.urls import reverse
 from django.utils import timezone
 
 from todo.models import SubTask, Task
+from todo.views import mark_task_done
 
 
 class TaskModelTestCase(TestCase):
@@ -91,6 +102,55 @@ class TaskModelTestCase(TestCase):
             timezone.make_aware(datetime(2024, 2, 29, 10, 0)),
         )
 
+    def test_monthly_recurrence_returns_to_original_day_after_short_month(self):
+        january_due = timezone.make_aware(datetime(2024, 1, 31, 10, 0))
+        january_task = self.create_task(
+            title='month end',
+            recurrence=Task.RECURRENCE_MONTHLY,
+            recurrence_day=31,
+            due_at=january_due,
+        )
+
+        february_task = january_task.create_next_occurrence()
+        march_task = february_task.create_next_occurrence()
+
+        self.assertEqual(
+            february_task.due_at,
+            timezone.make_aware(datetime(2024, 2, 29, 10, 0)),
+        )
+        self.assertEqual(february_task.recurrence_day, 31)
+        self.assertEqual(
+            march_task.due_at,
+            timezone.make_aware(datetime(2024, 3, 31, 10, 0)),
+        )
+        self.assertEqual(march_task.recurrence_day, 31)
+
+    def test_monthly_recurrence_handles_non_leap_year_and_year_boundary(self):
+        december_due = timezone.make_aware(datetime(2024, 12, 31, 10, 0))
+        december_task = self.create_task(
+            title='year end',
+            recurrence=Task.RECURRENCE_MONTHLY,
+            recurrence_day=31,
+            due_at=december_due,
+        )
+
+        january_task = december_task.create_next_occurrence()
+        february_task = january_task.create_next_occurrence()
+        march_task = february_task.create_next_occurrence()
+
+        self.assertEqual(
+            january_task.due_at,
+            timezone.make_aware(datetime(2025, 1, 31, 10, 0)),
+        )
+        self.assertEqual(
+            february_task.due_at,
+            timezone.make_aware(datetime(2025, 2, 28, 10, 0)),
+        )
+        self.assertEqual(
+            march_task.due_at,
+            timezone.make_aware(datetime(2025, 3, 31, 10, 0)),
+        )
+
     def test_create_next_occurrence_inherits_management_fields(self):
         due = timezone.make_aware(datetime(2026, 7, 1, 10, 0))
         task = self.create_task(
@@ -125,6 +185,21 @@ class TaskModelTestCase(TestCase):
         second = task.create_next_occurrence()
         self.assertEqual(first, second)
         self.assertEqual(Task.objects.exclude(pk=task.pk).count(), 1)
+
+    def test_database_rejects_second_next_occurrence_for_same_source(self):
+        task = self.create_task(
+            title='task1',
+            recurrence=Task.RECURRENCE_DAILY,
+            due_at=timezone.make_aware(datetime(2026, 7, 1, 10, 0)),
+        )
+        task.create_next_occurrence()
+
+        with self.assertRaises(IntegrityError):
+            Task.objects.create(
+                owner=self.owner,
+                title='duplicate',
+                recurrence_source=task,
+            )
 
     def test_is_overdue_future(self):
         due = timezone.make_aware(datetime(2026, 7, 31, 23, 59))
@@ -304,6 +379,68 @@ class TodoViewTestCase(TestCase):
         )
         self.assertEqual(list(response.context['tasks']), [expected])
 
+    def test_dashboard_requires_login(self):
+        self.client.logout()
+
+        response = self.client.get('/dashboard/')
+
+        self.assertRedirects(
+            response,
+            '/login/?next=/dashboard/',
+            fetch_redirect_response=False,
+        )
+
+    def test_dashboard_groups_due_tasks_and_excludes_other_users(self):
+        now = timezone.make_aware(datetime(2026, 7, 17, 12, 0))
+        today = self.create_task(
+            title='today task',
+            due_at=timezone.make_aware(datetime(2026, 7, 17, 18, 0)),
+        )
+        overdue = self.create_task(
+            title='overdue task',
+            due_at=timezone.make_aware(datetime(2026, 7, 16, 18, 0)),
+        )
+        upcoming = self.create_task(
+            title='upcoming task',
+            due_at=timezone.make_aware(datetime(2026, 7, 20, 18, 0)),
+        )
+        self.create_task(title='without due date')
+        self.create_task(
+            title='completed overdue',
+            status=Task.Status.DONE,
+            due_at=timezone.make_aware(datetime(2026, 7, 15, 18, 0)),
+        )
+        Task.objects.create(
+            owner=self.other_user,
+            title='other user task',
+            due_at=timezone.make_aware(datetime(2026, 7, 17, 18, 0)),
+        )
+
+        with patch('todo.views.timezone.now', return_value=now):
+            response = self.client.get('/dashboard/')
+
+        self.assertEqual(list(response.context['today_tasks']), [today])
+        self.assertEqual(list(response.context['overdue_tasks']), [overdue])
+        self.assertEqual(list(response.context['upcoming_tasks']), [upcoming])
+        self.assertNotContains(response, 'other user task')
+        self.assertNotContains(response, 'completed overdue')
+
+    def test_dashboard_status_counts_and_completion_rate(self):
+        self.create_task(title='todo', status=Task.Status.TODO)
+        self.create_task(title='doing', status=Task.Status.DOING)
+        self.create_task(title='done one', status=Task.Status.DONE)
+        self.create_task(title='done two', status=Task.Status.DONE)
+
+        response = self.client.get('/dashboard/')
+
+        counts = {
+            item['value']: item['count']
+            for item in response.context['status_summary']
+        }
+        self.assertEqual(counts, {'todo': 1, 'doing': 1, 'done': 2})
+        self.assertEqual(response.context['total_count'], 4)
+        self.assertEqual(response.context['completion_rate'], 50)
+
     def test_detail_includes_tag_recurrence_and_subtasks(self):
         task = self.create_task(
             title='task1',
@@ -354,6 +491,88 @@ class TodoViewTestCase(TestCase):
         self.assertEqual(task.category, Task.Category.PERSONAL)
         self.assertEqual(task.recurrence, Task.RECURRENCE_MONTHLY)
 
+    def test_update_due_date_resets_notification_and_allows_resend(self):
+        self.user.email = 'alice@example.com'
+        self.user.save(update_fields=['email'])
+        original_due = timezone.now() + timezone.timedelta(hours=6)
+        task = self.create_task(
+            title='task1',
+            due_at=original_due,
+            notified_at=timezone.now(),
+        )
+        new_due = timezone.now() + timezone.timedelta(hours=12)
+        response = self.client.post(
+            '/{}/update'.format(task.pk),
+            self.task_data(due_at=new_due.strftime('%Y-%m-%dT%H:%M')),
+        )
+
+        self.assertRedirects(response, '/{}/'.format(task.pk))
+        task.refresh_from_db()
+        self.assertIsNone(task.notified_at)
+
+        with self.settings(
+            EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend'
+        ):
+            call_command('notify_due_tasks')
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertIn('Test Task', mail.outbox[0].body)
+
+    def test_update_without_due_date_change_keeps_notification(self):
+        due = timezone.now().replace(second=0, microsecond=0)
+        due += timezone.timedelta(hours=12)
+        notified_at = timezone.now()
+        task = self.create_task(
+            title='task1',
+            due_at=due,
+            notified_at=notified_at,
+        )
+        response = self.client.post(
+            '/{}/update'.format(task.pk),
+            self.task_data(
+                title='renamed',
+                due_at=timezone.localtime(due).strftime('%Y-%m-%dT%H:%M'),
+            ),
+        )
+
+        self.assertRedirects(response, '/{}/'.format(task.pk))
+        task.refresh_from_db()
+        self.assertEqual(task.notified_at, notified_at)
+
+    def test_update_removing_due_date_clears_notification(self):
+        task = self.create_task(
+            title='task1',
+            due_at=timezone.now() + timezone.timedelta(hours=12),
+            notified_at=timezone.now(),
+        )
+        response = self.client.post(
+            '/{}/update'.format(task.pk),
+            self.task_data(due_at=''),
+        )
+
+        self.assertRedirects(response, '/{}/'.format(task.pk))
+        task.refresh_from_db()
+        self.assertIsNone(task.due_at)
+        self.assertIsNone(task.notified_at)
+
+    def test_update_monthly_due_date_updates_recurrence_day(self):
+        task = self.create_task(
+            title='monthly task',
+            recurrence=Task.RECURRENCE_MONTHLY,
+            recurrence_day=31,
+            due_at=timezone.make_aware(datetime(2026, 7, 31, 10, 0)),
+        )
+        response = self.client.post(
+            '/{}/update'.format(task.pk),
+            self.task_data(
+                recurrence=Task.RECURRENCE_MONTHLY,
+                due_at='2026-08-15T10:00',
+            ),
+        )
+
+        self.assertRedirects(response, '/{}/'.format(task.pk))
+        task.refresh_from_db()
+        self.assertEqual(task.recurrence_day, 15)
+
     def test_update_rejects_other_users_task(self):
         task = Task.objects.create(title='other', owner=self.other_user)
         response = self.client.post(
@@ -402,6 +621,25 @@ class TodoViewTestCase(TestCase):
             next_task.due_at,
             timezone.make_aware(datetime(2026, 7, 2, 10, 0)),
         )
+
+    def test_complete_rolls_back_when_next_occurrence_creation_fails(self):
+        task = self.create_task(
+            title='task1',
+            recurrence=Task.RECURRENCE_DAILY,
+            due_at=timezone.make_aware(datetime(2026, 7, 1, 10, 0)),
+        )
+
+        with patch.object(
+            Task,
+            'create_next_occurrence',
+            side_effect=RuntimeError('creation failed'),
+        ):
+            with self.assertRaises(RuntimeError):
+                mark_task_done(task)
+
+        task.refresh_from_db()
+        self.assertEqual(task.status, Task.Status.TODO)
+        self.assertFalse(Task.objects.filter(recurrence_source=task).exists())
 
     def test_complete_get_not_allowed(self):
         task = self.create_task(title='task1')
@@ -678,3 +916,32 @@ class TaskAdminTestCase(TestCase):
         self.assertEqual(response.status_code, 302)
         legacy_task.refresh_from_db()
         self.assertEqual(legacy_task.owner, owner)
+
+
+@skipUnlessDBFeature('has_select_for_update')
+class RecurringTaskConcurrencyTestCase(TransactionTestCase):
+    def test_concurrent_completion_creates_one_next_occurrence(self):
+        owner = User.objects.create_user(username='owner', password='password')
+        task = Task.objects.create(
+            owner=owner,
+            title='concurrent task',
+            recurrence=Task.RECURRENCE_DAILY,
+            due_at=timezone.make_aware(datetime(2026, 7, 1, 10, 0)),
+        )
+        barrier = Barrier(2)
+
+        def complete_task():
+            close_old_connections()
+            local_task = Task.objects.get(pk=task.pk)
+            barrier.wait()
+            mark_task_done(local_task)
+            close_old_connections()
+
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            futures = [executor.submit(complete_task) for _ in range(2)]
+            for future in futures:
+                future.result()
+
+        task.refresh_from_db()
+        self.assertEqual(task.status, Task.Status.DONE)
+        self.assertEqual(Task.objects.filter(recurrence_source=task).count(), 1)
