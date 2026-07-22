@@ -1,5 +1,6 @@
 from datetime import datetime, time, timedelta
 
+from django.contrib.auth import login
 from django.contrib.auth.decorators import login_required
 from django.db import transaction
 from django.db.models import F, Q
@@ -8,8 +9,20 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
-from todo.forms import TaskForm
+from todo.forms import SignUpForm, TaskForm
 from todo.models import SubTask, Task
+
+
+def signup(request):
+    if request.user.is_authenticated:
+        return redirect('index')
+
+    form = SignUpForm(request.POST if request.method == 'POST' else None)
+    if request.method == 'POST' and form.is_valid():
+        user = form.save()
+        login(request, user)
+        return redirect('index')
+    return render(request, 'registration/signup.html', {'form': form})
 
 
 def get_user_task_or_404(user, task_id):
