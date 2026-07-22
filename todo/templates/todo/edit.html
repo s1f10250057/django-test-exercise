@@ -1,15 +1,8 @@
-{% load static %}
-<!DOCTYPE html>
-<html lang="ja">
+{% extends 'todo/base.html' %}
 
-  <head>
-    <title>タスク編集 | Task Board</title>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <link rel="stylesheet" href="{% static 'todo/style.css' %}?v=5">
-  </head>
+{% block title %}タスク編集 | Task Board{% endblock %}
 
-  <body>
+{% block content %}
     <main class="page-shell page-shell-narrow">
       <header class="page-header">
         <div>
@@ -34,6 +27,4 @@
         </form>
       </section>
     </main>
-  </body>
-
-</html>
+{% endblock %}

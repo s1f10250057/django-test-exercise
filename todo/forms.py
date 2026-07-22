@@ -1,6 +1,17 @@
 from django import forms
+from django.contrib.auth.forms import UserCreationForm
 
 from todo.models import Task
+
+
+class SignUpForm(UserCreationForm):
+    """Account registration form using Django's built-in validation."""
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['username'].label = 'ユーザー名'
+        self.fields['password1'].label = 'パスワード'
+        self.fields['password2'].label = 'パスワード（確認）'
 
 
 class TaskForm(forms.ModelForm):

@@ -11,6 +11,7 @@ from django.core.management import call_command
 from django.db import IntegrityError, close_old_connections
 from django.test import (
     Client,
+    SimpleTestCase,
     TestCase,
     TransactionTestCase,
     override_settings,
@@ -21,6 +22,104 @@ from django.utils import timezone
 
 from todo.models import SubTask, Task
 from todo.views import mark_task_done
+
+
+
+class ResponsiveStylesTestCase(SimpleTestCase):
+    def test_forms_use_single_column_at_smartphone_width(self):
+        stylesheet_path = finders.find('todo/style.css')
+        self.assertIsNotNone(stylesheet_path)
+
+        with open(stylesheet_path, encoding='utf-8') as stylesheet:
+            css = stylesheet.read()
+
+        self.assertRegex(
+            css,
+            r'@media \(max-width: 560px\)\s*{[\s\S]*?'
+            r'\.task-form,\s*\.filter-form,\s*\.subtask-form\s*'
+            r'{\s*grid-template-columns: 1fr;',
+        )
+
+class SignUpViewTestCase(TestCase):
+    def valid_data(self, **overrides):
+        data = {
+            'username': 'new-user',
+            'password1': 'SafePassword-2026',
+            'password2': 'SafePassword-2026',
+        }
+        data.update(overrides)
+        return data
+
+    def test_signup_get_renders_form(self):
+        response = self.client.get(reverse('signup'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTemplateUsed(response, 'registration/signup.html')
+        self.assertContains(response, 'name="csrfmiddlewaretoken"')
+        self.assertContains(response, 'アカウントを作成')
+
+    def test_signup_success_creates_user_logs_in_and_redirects(self):
+        response = self.client.post(reverse('signup'), self.valid_data())
+
+        self.assertRedirects(response, reverse('index'))
+        user = User.objects.get(username='new-user')
+        self.assertTrue(user.check_password('SafePassword-2026'))
+        self.assertEqual(int(self.client.session['_auth_user_id']), user.pk)
+
+    def test_signup_rejects_duplicate_username(self):
+        User.objects.create_user(username='new-user', password='Existing-2026')
+
+        response = self.client.post(reverse('signup'), self.valid_data())
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, '同じユーザー名が既に登録済みです')
+        self.assertEqual(User.objects.filter(username='new-user').count(), 1)
+        self.assertNotIn('_auth_user_id', self.client.session)
+
+    def test_signup_rejects_invalid_password(self):
+        response = self.client.post(
+            reverse('signup'),
+            self.valid_data(password1='123', password2='123'),
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'このパスワードは短すぎます')
+        self.assertFalse(User.objects.filter(username='new-user').exists())
+        self.assertNotIn('_auth_user_id', self.client.session)
+
+    def test_signup_empty_post_shows_required_errors(self):
+        response = self.client.post(reverse('signup'), {})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.context['form'].is_bound)
+        self.assertFormError(response.context['form'], 'username', 'このフィールドは必須です。')
+        self.assertFormError(response.context['form'], 'password1', 'このフィールドは必須です。')
+        self.assertFormError(response.context['form'], 'password2', 'このフィールドは必須です。')
+        self.assertEqual(User.objects.count(), 0)
+
+    def test_signup_rejects_post_without_csrf_token(self):
+        csrf_client = Client(enforce_csrf_checks=True)
+
+        response = csrf_client.post(reverse('signup'), self.valid_data())
+
+        self.assertEqual(response.status_code, 403)
+        self.assertFalse(User.objects.filter(username='new-user').exists())
+
+    def test_authenticated_user_is_redirected_from_signup(self):
+        user = User.objects.create_user(username='member', password='Password-2026')
+        self.client.force_login(user)
+
+        get_response = self.client.get(reverse('signup'))
+        post_response = self.client.post(reverse('signup'), self.valid_data())
+
+        self.assertRedirects(get_response, reverse('index'))
+        self.assertRedirects(post_response, reverse('index'))
+        self.assertFalse(User.objects.filter(username='new-user').exists())
+
+    def test_login_page_links_to_signup(self):
+        response = self.client.get(reverse('login'))
+
+        self.assertContains(response, f'href="{reverse("signup")}"')
 
 
 class TaskModelTestCase(TestCase):
@@ -158,6 +257,7 @@ class TaskModelTestCase(TestCase):
         task = self.create_task(
             title='task1',
             tag='study',
+            description='次回にも引き継ぐメモ',
             priority=Task.Priority.HIGH,
             category=Task.Category.UNIVERSITY,
             recurrence=Task.RECURRENCE_DAILY,
@@ -167,6 +267,7 @@ class TaskModelTestCase(TestCase):
         self.assertEqual(next_task.owner, self.owner)
         self.assertEqual(next_task.title, 'task1')
         self.assertEqual(next_task.tag, 'study')
+        self.assertEqual(next_task.description, '次回にも引き継ぐメモ')
         self.assertEqual(next_task.priority, Task.Priority.HIGH)
         self.assertEqual(next_task.category, Task.Category.UNIVERSITY)
         self.assertEqual(next_task.status, Task.Status.TODO)
@@ -242,6 +343,7 @@ class TodoViewTestCase(TestCase):
         data = {
             'title': 'Test Task',
             'tag': 'study',
+            'description': 'タスクのメモ',
             'due_at': '2026-07-31T23:59',
             'status': Task.Status.TODO,
             'priority': Task.Priority.MEDIUM,
@@ -261,6 +363,28 @@ class TodoViewTestCase(TestCase):
         response = self.client.get('/login/')
         self.assertEqual(response.status_code, 200)
         self.assertTemplateUsed(response, 'registration/login.html')
+
+    def test_all_pages_set_mobile_viewport(self):
+        self.client.logout()
+        login_response = self.client.get('/login/')
+        self.client.force_login(self.user)
+        task = self.create_task(title='responsive task')
+        responses = [
+            login_response,
+            self.client.get('/'),
+            self.client.get('/dashboard/'),
+            self.client.get('/{}/'.format(task.pk)),
+            self.client.get('/{}/update'.format(task.pk)),
+        ]
+
+        for response in responses:
+            with self.subTest(path=response.request['PATH_INFO']):
+                self.assertContains(
+                    response,
+                    '<meta name="viewport" '
+                    'content="width=device-width, initial-scale=1">',
+                    count=1,
+                )
 
     def test_login_post_success(self):
         self.client.logout()
@@ -312,19 +436,21 @@ class TodoViewTestCase(TestCase):
         task = Task.objects.get()
         self.assertEqual(task.owner, self.user)
         self.assertEqual(task.tag, 'study')
+        self.assertEqual(task.description, 'タスクのメモ')
         self.assertEqual(task.priority, Task.Priority.HIGH)
         self.assertEqual(task.category, Task.Category.UNIVERSITY)
         self.assertEqual(task.recurrence, Task.RECURRENCE_WEEKLY)
 
-    def test_index_post_accepts_empty_due_date_and_tag(self):
+    def test_index_post_accepts_empty_due_date_tag_and_description(self):
         response = self.client.post(
             '/',
-            self.task_data(due_at='', tag=''),
+            self.task_data(due_at='', tag='', description=''),
         )
         self.assertRedirects(response, '/')
         task = Task.objects.get()
         self.assertIsNone(task.due_at)
         self.assertEqual(task.tag, '')
+        self.assertEqual(task.description, '')
 
     def test_index_post_rejects_empty_title(self):
         response = self.client.post('/', self.task_data(title=''))
@@ -462,6 +588,7 @@ class TodoViewTestCase(TestCase):
         task = self.create_task(
             title='task1',
             tag='study',
+            description='詳細画面に表示するメモ',
             priority=Task.Priority.HIGH,
             recurrence=Task.RECURRENCE_DAILY,
         )
@@ -473,8 +600,21 @@ class TodoViewTestCase(TestCase):
         self.assertEqual(list(response.context['subtasks']), [subtask])
         self.assertContains(response, '優先度 高')
         self.assertContains(response, '#study')
+        self.assertContains(response, '詳細画面に表示するメモ')
         self.assertContains(response, '毎日')
         self.assertContains(response, 'subtask1')
+
+    def test_detail_displays_placeholder_without_description(self):
+        task = self.create_task(
+            title='task without description',
+            due_at=timezone.make_aware(datetime(2026, 7, 31, 23, 59)),
+        )
+
+        response = self.client.get('/{}/'.format(task.pk))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, '説明')
+        self.assertContains(response, '未設定', count=1)
 
     def test_detail_requires_login(self):
         task = self.create_task(title='task1')
@@ -492,6 +632,7 @@ class TodoViewTestCase(TestCase):
         data = self.task_data(
             title='Updated Task',
             tag='work',
+            description='編集後のメモ',
             status=Task.Status.DOING,
             priority=Task.Priority.HIGH,
             category=Task.Category.PERSONAL,
@@ -503,6 +644,7 @@ class TodoViewTestCase(TestCase):
         self.assertEqual(task.owner, self.user)
         self.assertEqual(task.title, 'Updated Task')
         self.assertEqual(task.tag, 'work')
+        self.assertEqual(task.description, '編集後のメモ')
         self.assertEqual(task.status, Task.Status.DOING)
         self.assertEqual(task.priority, Task.Priority.HIGH)
         self.assertEqual(task.category, Task.Category.PERSONAL)
@@ -756,6 +898,22 @@ class TodoViewTestCase(TestCase):
         subtask.refresh_from_db()
         self.assertTrue(subtask.completed)
 
+    def test_toggle_subtask_post_returns_completed_subtask_to_incomplete(self):
+        task = self.create_task(title='task1')
+        subtask = SubTask.objects.create(
+            task=task,
+            title='subtask1',
+            completed=True,
+        )
+
+        response = self.client.post(
+            '/{}/subtasks/{}/toggle/'.format(task.pk, subtask.pk)
+        )
+
+        self.assertRedirects(response, '/{}/'.format(task.pk))
+        subtask.refresh_from_db()
+        self.assertFalse(subtask.completed)
+
     def test_toggle_subtask_get_not_allowed(self):
         task = self.create_task(title='task1')
         subtask = SubTask.objects.create(task=task, title='subtask1')
@@ -789,6 +947,35 @@ class TodoViewTestCase(TestCase):
         )
         self.assertEqual(response.status_code, 405)
         self.assertTrue(SubTask.objects.filter(pk=subtask.pk).exists())
+
+    def test_delete_subtask_without_csrf_token_is_forbidden(self):
+        task = self.create_task(title='task1')
+        subtask = SubTask.objects.create(task=task, title='subtask1')
+        csrf_client = Client(enforce_csrf_checks=True)
+        csrf_client.force_login(self.user)
+
+        response = csrf_client.post(
+            '/{}/subtasks/{}/delete/'.format(task.pk, subtask.pk)
+        )
+
+        self.assertEqual(response.status_code, 403)
+        self.assertTrue(SubTask.objects.filter(pk=subtask.pk).exists())
+
+    def test_delete_subtask_with_csrf_token_succeeds(self):
+        task = self.create_task(title='task1')
+        subtask = SubTask.objects.create(task=task, title='subtask1')
+        csrf_client = Client(enforce_csrf_checks=True)
+        csrf_client.force_login(self.user)
+        detail_response = csrf_client.get('/{}/'.format(task.pk))
+        csrf_token = detail_response.cookies['csrftoken'].value
+
+        response = csrf_client.post(
+            '/{}/subtasks/{}/delete/'.format(task.pk, subtask.pk),
+            {'csrfmiddlewaretoken': csrf_token},
+        )
+
+        self.assertRedirects(response, '/{}/'.format(task.pk))
+        self.assertFalse(SubTask.objects.filter(pk=subtask.pk).exists())
 
     def test_delete_subtask_rejects_other_users_task(self):
         task = Task.objects.create(title='other', owner=self.other_user)

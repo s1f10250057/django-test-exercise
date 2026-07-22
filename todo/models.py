@@ -122,6 +122,7 @@ class Task(models.Model):
                 'owner': self.owner,
                 'title': self.title,
                 'tag': self.tag,
+                'description': self.description,
                 'priority': self.priority,
                 'category': self.category,
                 'recurrence': self.recurrence,

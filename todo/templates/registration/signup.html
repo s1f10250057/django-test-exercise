@@ -1,0 +1,40 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="ja">
+
+  <head>
+    <title>アカウント作成 | Task Board</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="{% static 'todo/style.css' %}?v=6">
+  </head>
+
+  <body>
+    <main class="page-shell page-shell-narrow">
+      <header class="page-header">
+        <div>
+          <p class="eyebrow">TASK MANAGEMENT</p>
+          <h1>アカウント作成</h1>
+        </div>
+      </header>
+
+      <section class="panel">
+        <form class="edit-form" method="post">
+          {% csrf_token %}
+          {% for field in form %}
+          <div class="field">
+            <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+            {{ field }}
+            {{ field.errors }}
+            {% if field.help_text %}<div class="help-text">{{ field.help_text|safe }}</div>{% endif %}
+          </div>
+          {% endfor %}
+          {{ form.non_field_errors }}
+          <button type="submit">アカウントを作成</button>
+        </form>
+        <p class="auth-switch">すでにアカウントをお持ちの方は<a href="{% url 'login' %}">ログイン</a></p>
+      </section>
+    </main>
+  </body>
+
+</html>
