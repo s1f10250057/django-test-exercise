@@ -4,11 +4,13 @@ from threading import Barrier
 from unittest.mock import patch
 
 from django.contrib.auth.models import User
+from django.contrib.staticfiles import finders
 from django.core import mail
 from django.core.management import call_command
 from django.db import IntegrityError, close_old_connections
 from django.test import (
     Client,
+    SimpleTestCase,
     TestCase,
     TransactionTestCase,
     override_settings,
@@ -20,6 +22,22 @@ from django.utils import timezone
 from todo.models import SubTask, Task
 from todo.views import mark_task_done
 
+
+
+class ResponsiveStylesTestCase(SimpleTestCase):
+    def test_forms_use_single_column_at_smartphone_width(self):
+        stylesheet_path = finders.find('todo/style.css')
+        self.assertIsNotNone(stylesheet_path)
+
+        with open(stylesheet_path, encoding='utf-8') as stylesheet:
+            css = stylesheet.read()
+
+        self.assertRegex(
+            css,
+            r'@media \(max-width: 560px\)\s*{[\s\S]*?'
+            r'\.task-form,\s*\.filter-form,\s*\.subtask-form\s*'
+            r'{\s*grid-template-columns: 1fr;',
+        )
 
 class SignUpViewTestCase(TestCase):
     def valid_data(self, **overrides):
@@ -344,6 +362,28 @@ class TodoViewTestCase(TestCase):
         response = self.client.get('/login/')
         self.assertEqual(response.status_code, 200)
         self.assertTemplateUsed(response, 'registration/login.html')
+
+    def test_all_pages_set_mobile_viewport(self):
+        self.client.logout()
+        login_response = self.client.get('/login/')
+        self.client.force_login(self.user)
+        task = self.create_task(title='responsive task')
+        responses = [
+            login_response,
+            self.client.get('/'),
+            self.client.get('/dashboard/'),
+            self.client.get('/{}/'.format(task.pk)),
+            self.client.get('/{}/update'.format(task.pk)),
+        ]
+
+        for response in responses:
+            with self.subTest(path=response.request['PATH_INFO']):
+                self.assertContains(
+                    response,
+                    '<meta name="viewport" '
+                    'content="width=device-width, initial-scale=1">',
+                    count=1,
+                )
 
     def test_login_post_success(self):
         self.client.logout()
