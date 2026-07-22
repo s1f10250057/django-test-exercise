@@ -238,6 +238,7 @@ class TaskModelTestCase(TestCase):
         task = self.create_task(
             title='task1',
             tag='study',
+            description='次回にも引き継ぐメモ',
             priority=Task.Priority.HIGH,
             category=Task.Category.UNIVERSITY,
             recurrence=Task.RECURRENCE_DAILY,
@@ -247,6 +248,7 @@ class TaskModelTestCase(TestCase):
         self.assertEqual(next_task.owner, self.owner)
         self.assertEqual(next_task.title, 'task1')
         self.assertEqual(next_task.tag, 'study')
+        self.assertEqual(next_task.description, '次回にも引き継ぐメモ')
         self.assertEqual(next_task.priority, Task.Priority.HIGH)
         self.assertEqual(next_task.category, Task.Category.UNIVERSITY)
         self.assertEqual(next_task.status, Task.Status.TODO)
@@ -322,6 +324,7 @@ class TodoViewTestCase(TestCase):
         data = {
             'title': 'Test Task',
             'tag': 'study',
+            'description': 'タスクのメモ',
             'due_at': '2026-07-31T23:59',
             'status': Task.Status.TODO,
             'priority': Task.Priority.MEDIUM,
@@ -377,19 +380,21 @@ class TodoViewTestCase(TestCase):
         task = Task.objects.get()
         self.assertEqual(task.owner, self.user)
         self.assertEqual(task.tag, 'study')
+        self.assertEqual(task.description, 'タスクのメモ')
         self.assertEqual(task.priority, Task.Priority.HIGH)
         self.assertEqual(task.category, Task.Category.UNIVERSITY)
         self.assertEqual(task.recurrence, Task.RECURRENCE_WEEKLY)
 
-    def test_index_post_accepts_empty_due_date_and_tag(self):
+    def test_index_post_accepts_empty_due_date_tag_and_description(self):
         response = self.client.post(
             '/',
-            self.task_data(due_at='', tag=''),
+            self.task_data(due_at='', tag='', description=''),
         )
         self.assertRedirects(response, '/')
         task = Task.objects.get()
         self.assertIsNone(task.due_at)
         self.assertEqual(task.tag, '')
+        self.assertEqual(task.description, '')
 
     def test_index_post_rejects_empty_title(self):
         response = self.client.post('/', self.task_data(title=''))
@@ -527,6 +532,7 @@ class TodoViewTestCase(TestCase):
         task = self.create_task(
             title='task1',
             tag='study',
+            description='詳細画面に表示するメモ',
             priority=Task.Priority.HIGH,
             recurrence=Task.RECURRENCE_DAILY,
         )
@@ -538,8 +544,21 @@ class TodoViewTestCase(TestCase):
         self.assertEqual(list(response.context['subtasks']), [subtask])
         self.assertContains(response, '優先度 高')
         self.assertContains(response, '#study')
+        self.assertContains(response, '詳細画面に表示するメモ')
         self.assertContains(response, '毎日')
         self.assertContains(response, 'subtask1')
+
+    def test_detail_displays_placeholder_without_description(self):
+        task = self.create_task(
+            title='task without description',
+            due_at=timezone.make_aware(datetime(2026, 7, 31, 23, 59)),
+        )
+
+        response = self.client.get('/{}/'.format(task.pk))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, '説明')
+        self.assertContains(response, '未設定', count=1)
 
     def test_detail_requires_login(self):
         task = self.create_task(title='task1')
@@ -557,6 +576,7 @@ class TodoViewTestCase(TestCase):
         data = self.task_data(
             title='Updated Task',
             tag='work',
+            description='編集後のメモ',
             status=Task.Status.DOING,
             priority=Task.Priority.HIGH,
             category=Task.Category.PERSONAL,
@@ -568,6 +588,7 @@ class TodoViewTestCase(TestCase):
         self.assertEqual(task.owner, self.user)
         self.assertEqual(task.title, 'Updated Task')
         self.assertEqual(task.tag, 'work')
+        self.assertEqual(task.description, '編集後のメモ')
         self.assertEqual(task.status, Task.Status.DOING)
         self.assertEqual(task.priority, Task.Priority.HIGH)
         self.assertEqual(task.category, Task.Category.PERSONAL)
