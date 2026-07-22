@@ -68,6 +68,16 @@ class SignUpViewTestCase(TestCase):
         self.assertFalse(User.objects.filter(username='new-user').exists())
         self.assertNotIn('_auth_user_id', self.client.session)
 
+    def test_signup_empty_post_shows_required_errors(self):
+        response = self.client.post(reverse('signup'), {})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.context['form'].is_bound)
+        self.assertFormError(response.context['form'], 'username', 'このフィールドは必須です。')
+        self.assertFormError(response.context['form'], 'password1', 'このフィールドは必須です。')
+        self.assertFormError(response.context['form'], 'password2', 'このフィールドは必須です。')
+        self.assertEqual(User.objects.count(), 0)
+
     def test_signup_rejects_post_without_csrf_token(self):
         csrf_client = Client(enforce_csrf_checks=True)
 
