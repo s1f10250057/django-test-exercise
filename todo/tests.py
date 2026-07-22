@@ -821,6 +821,22 @@ class TodoViewTestCase(TestCase):
         subtask.refresh_from_db()
         self.assertTrue(subtask.completed)
 
+    def test_toggle_subtask_post_returns_completed_subtask_to_incomplete(self):
+        task = self.create_task(title='task1')
+        subtask = SubTask.objects.create(
+            task=task,
+            title='subtask1',
+            completed=True,
+        )
+
+        response = self.client.post(
+            '/{}/subtasks/{}/toggle/'.format(task.pk, subtask.pk)
+        )
+
+        self.assertRedirects(response, '/{}/'.format(task.pk))
+        subtask.refresh_from_db()
+        self.assertFalse(subtask.completed)
+
     def test_toggle_subtask_get_not_allowed(self):
         task = self.create_task(title='task1')
         subtask = SubTask.objects.create(task=task, title='subtask1')
@@ -854,6 +870,35 @@ class TodoViewTestCase(TestCase):
         )
         self.assertEqual(response.status_code, 405)
         self.assertTrue(SubTask.objects.filter(pk=subtask.pk).exists())
+
+    def test_delete_subtask_without_csrf_token_is_forbidden(self):
+        task = self.create_task(title='task1')
+        subtask = SubTask.objects.create(task=task, title='subtask1')
+        csrf_client = Client(enforce_csrf_checks=True)
+        csrf_client.force_login(self.user)
+
+        response = csrf_client.post(
+            '/{}/subtasks/{}/delete/'.format(task.pk, subtask.pk)
+        )
+
+        self.assertEqual(response.status_code, 403)
+        self.assertTrue(SubTask.objects.filter(pk=subtask.pk).exists())
+
+    def test_delete_subtask_with_csrf_token_succeeds(self):
+        task = self.create_task(title='task1')
+        subtask = SubTask.objects.create(task=task, title='subtask1')
+        csrf_client = Client(enforce_csrf_checks=True)
+        csrf_client.force_login(self.user)
+        detail_response = csrf_client.get('/{}/'.format(task.pk))
+        csrf_token = detail_response.cookies['csrftoken'].value
+
+        response = csrf_client.post(
+            '/{}/subtasks/{}/delete/'.format(task.pk, subtask.pk),
+            {'csrfmiddlewaretoken': csrf_token},
+        )
+
+        self.assertRedirects(response, '/{}/'.format(task.pk))
+        self.assertFalse(SubTask.objects.filter(pk=subtask.pk).exists())
 
     def test_delete_subtask_rejects_other_users_task(self):
         task = Task.objects.create(title='other', owner=self.other_user)
