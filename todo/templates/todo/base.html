@@ -1,0 +1,17 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="ja">
+
+  <head>
+    <title>{% block title %}Task Board{% endblock %}</title>
+    <meta charset="UTF-8">
+    <meta name="author" content="INIAD">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="{% static 'todo/style.css' %}?v=6">
+  </head>
+
+  <body>
+    {% block content %}{% endblock %}
+  </body>
+
+</html>
