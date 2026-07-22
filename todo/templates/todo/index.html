@@ -7,7 +7,7 @@
     <meta charset="UTF-8">
     <meta name="author" content="INIAD">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <link rel="stylesheet" href="{% static 'todo/style.css' %}?v=5">
+    <link rel="stylesheet" href="{% static 'todo/style.css' %}?v=6">
   </head>
 
   <body>
@@ -37,38 +37,38 @@
             {{ form.title }}
             {{ form.title.errors }}
           </div>
-          <div class="field">
+          <div class="field field-tag">
             <label for="{{ form.tag.id_for_label }}">{{ form.tag.label }}</label>
             {{ form.tag }}
             {{ form.tag.errors }}
           </div>
-          <div class="field">
+          <div class="field field-description">
             <label for="{{ form.description.id_for_label }}">{{ form.description.label }}</label>
             {{ form.description }}
             {{ form.description.errors }}
           </div>
-          <div class="field">
+          <div class="field field-due-at">
             <label for="{{ form.due_at.id_for_label }}">{{ form.due_at.label }}</label>
             {{ form.due_at }}
             {{ form.due_at.errors }}
           </div>
-          <div class="field">
+          <div class="field field-priority">
             <label for="{{ form.priority.id_for_label }}">{{ form.priority.label }}</label>
             {{ form.priority }}
           </div>
-          <div class="field">
+          <div class="field field-category">
             <label for="{{ form.category.id_for_label }}">{{ form.category.label }}</label>
             {{ form.category }}
           </div>
-          <div class="field">
+          <div class="field field-status">
             <label for="{{ form.status.id_for_label }}">{{ form.status.label }}</label>
             {{ form.status }}
           </div>
-          <div class="field">
+          <div class="field field-recurrence">
             <label for="{{ form.recurrence.id_for_label }}">{{ form.recurrence.label }}</label>
             {{ form.recurrence }}
           </div>
-          <button type="submit">追加</button>
+          <button class="task-form-submit" type="submit">追加</button>
         </form>
       </section>
 

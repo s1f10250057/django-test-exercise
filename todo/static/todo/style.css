@@ -110,9 +110,34 @@ form {
 
 .task-form {
   display: grid;
-  grid-template-columns: minmax(170px, 1.5fr) minmax(110px, 0.8fr) minmax(170px, 1.2fr) repeat(4, minmax(100px, 0.65fr)) auto;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
   gap: 12px;
   align-items: end;
+}
+
+.task-form .field {
+  min-width: 0;
+}
+
+.field-title,
+.field-due-at {
+  grid-column: span 3;
+}
+
+.field-description {
+  grid-column: span 4;
+}
+
+.field-tag,
+.field-priority,
+.field-category,
+.field-status,
+.field-recurrence {
+  grid-column: span 2;
+}
+
+.task-form-submit {
+  grid-column: span 4;
 }
 
 .filter-form {
@@ -145,6 +170,7 @@ input[type="text"],
 input[type="password"],
 input[type="search"],
 input[type="datetime-local"],
+textarea,
 select {
   width: 100%;
   min-height: 40px;
@@ -156,7 +182,13 @@ select {
   font: inherit;
 }
 
+textarea {
+  min-height: 76px;
+  resize: vertical;
+}
+
 input:focus,
+textarea:focus,
 select:focus {
   border-color: #5680e7;
   outline: 3px solid rgb(86 128 231 / 18%);
@@ -500,7 +532,11 @@ button:hover {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .task-form button,
+  .task-form > * {
+    grid-column: auto;
+  }
+
+  .task-form-submit,
   .filter-actions {
     grid-column: 1 / -1;
     justify-self: start;
@@ -537,7 +573,7 @@ button:hover {
     grid-template-columns: 1fr;
   }
 
-  .task-form button,
+  .task-form-submit,
   .filter-actions {
     grid-column: auto;
   }

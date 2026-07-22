@@ -1,9 +1,11 @@
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
+from pathlib import Path
 from threading import Barrier
 from unittest.mock import patch
 
 from django.contrib.auth.models import User
+from django.contrib.staticfiles import finders
 from django.core import mail
 from django.core.management import call_command
 from django.db import IntegrityError, close_old_connections
@@ -281,6 +283,21 @@ class TodoViewTestCase(TestCase):
         self.assertContains(response, '未着手')
         self.assertContains(response, '進行中')
         self.assertContains(response, '完了')
+
+    def test_index_task_form_has_responsive_layout_hooks(self):
+        response = self.client.get('/')
+
+        self.assertContains(response, 'class="field field-description"')
+        self.assertContains(response, 'class="field field-due-at"')
+        self.assertContains(response, 'class="task-form-submit"')
+
+    def test_task_form_styles_cover_description_and_responsive_layout(self):
+        stylesheet = Path(finders.find('todo/style.css')).read_text()
+
+        self.assertIn('.field-description {\n  grid-column: span 4;', stylesheet)
+        self.assertIn('input[type="datetime-local"],\ntextarea,', stylesheet)
+        self.assertIn('@media (max-width: 1100px)', stylesheet)
+        self.assertIn('@media (max-width: 560px)', stylesheet)
 
     def test_index_post_creates_owned_task_and_redirects(self):
         response = self.client.post(
