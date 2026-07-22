@@ -23,6 +23,7 @@ from todo.models import SubTask, Task
 from todo.views import mark_task_done
 
 
+
 class ResponsiveStylesTestCase(SimpleTestCase):
     def test_forms_use_single_column_at_smartphone_width(self):
         stylesheet_path = finders.find('todo/style.css')
@@ -37,6 +38,87 @@ class ResponsiveStylesTestCase(SimpleTestCase):
             r'\.task-form,\s*\.filter-form,\s*\.subtask-form\s*'
             r'{\s*grid-template-columns: 1fr;',
         )
+
+class SignUpViewTestCase(TestCase):
+    def valid_data(self, **overrides):
+        data = {
+            'username': 'new-user',
+            'password1': 'SafePassword-2026',
+            'password2': 'SafePassword-2026',
+        }
+        data.update(overrides)
+        return data
+
+    def test_signup_get_renders_form(self):
+        response = self.client.get(reverse('signup'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTemplateUsed(response, 'registration/signup.html')
+        self.assertContains(response, 'name="csrfmiddlewaretoken"')
+        self.assertContains(response, 'アカウントを作成')
+
+    def test_signup_success_creates_user_logs_in_and_redirects(self):
+        response = self.client.post(reverse('signup'), self.valid_data())
+
+        self.assertRedirects(response, reverse('index'))
+        user = User.objects.get(username='new-user')
+        self.assertTrue(user.check_password('SafePassword-2026'))
+        self.assertEqual(int(self.client.session['_auth_user_id']), user.pk)
+
+    def test_signup_rejects_duplicate_username(self):
+        User.objects.create_user(username='new-user', password='Existing-2026')
+
+        response = self.client.post(reverse('signup'), self.valid_data())
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, '同じユーザー名が既に登録済みです')
+        self.assertEqual(User.objects.filter(username='new-user').count(), 1)
+        self.assertNotIn('_auth_user_id', self.client.session)
+
+    def test_signup_rejects_invalid_password(self):
+        response = self.client.post(
+            reverse('signup'),
+            self.valid_data(password1='123', password2='123'),
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'このパスワードは短すぎます')
+        self.assertFalse(User.objects.filter(username='new-user').exists())
+        self.assertNotIn('_auth_user_id', self.client.session)
+
+    def test_signup_empty_post_shows_required_errors(self):
+        response = self.client.post(reverse('signup'), {})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.context['form'].is_bound)
+        self.assertFormError(response.context['form'], 'username', 'このフィールドは必須です。')
+        self.assertFormError(response.context['form'], 'password1', 'このフィールドは必須です。')
+        self.assertFormError(response.context['form'], 'password2', 'このフィールドは必須です。')
+        self.assertEqual(User.objects.count(), 0)
+
+    def test_signup_rejects_post_without_csrf_token(self):
+        csrf_client = Client(enforce_csrf_checks=True)
+
+        response = csrf_client.post(reverse('signup'), self.valid_data())
+
+        self.assertEqual(response.status_code, 403)
+        self.assertFalse(User.objects.filter(username='new-user').exists())
+
+    def test_authenticated_user_is_redirected_from_signup(self):
+        user = User.objects.create_user(username='member', password='Password-2026')
+        self.client.force_login(user)
+
+        get_response = self.client.get(reverse('signup'))
+        post_response = self.client.post(reverse('signup'), self.valid_data())
+
+        self.assertRedirects(get_response, reverse('index'))
+        self.assertRedirects(post_response, reverse('index'))
+        self.assertFalse(User.objects.filter(username='new-user').exists())
+
+    def test_login_page_links_to_signup(self):
+        response = self.client.get(reverse('login'))
+
+        self.assertContains(response, f'href="{reverse("signup")}"')
 
 
 class TaskModelTestCase(TestCase):
